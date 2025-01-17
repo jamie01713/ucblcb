@@ -6,6 +6,7 @@ POSSIBLE OPTIMIZATIONS TO HELP SPEED
 """
 
 import numpy as np
+from numpy.random import Generator
 
 whittle_threshold = 1e-4
 value_iteration_threshold = 1e-2
@@ -16,7 +17,13 @@ class Error(RuntimeError):
 
 
 def arm_value_iteration(
-    transitions, state, lamb_val, discount, threshold=value_iteration_threshold
+    transitions,
+    state,
+    lamb_val,
+    discount,
+    threshold=value_iteration_threshold,
+    *,
+    random: Generator
 ):
     """ value iteration for a single arm at a time
 
@@ -26,8 +33,8 @@ def arm_value_iteration(
     assert discount < 1
 
     n_states, n_actions = transitions.shape
-    value_func = np.random.rand(n_states)
-    difference = np.ones((n_states))
+    value_func = random.uniform(size=n_states)
+    difference = np.ones(n_states)
     iters = 0
 
     # lambda-adjusted reward function

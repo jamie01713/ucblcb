@@ -7,7 +7,6 @@ run:
 
 import numpy as np
 import pandas as pd
-import random
 import time
 import datetime
 import os
@@ -87,7 +86,14 @@ if __name__ == '__main__':
         mpl.use('tkagg')
 
     np.random.seed(seed)
-    random.seed(seed)
+
+    # we should make sure that thrid party packages do not use python's random
+    #  or produce resutls robust to non-fixed seed
+    # random.seed(seed)
+
+    # ideally we should use seedsqeuence becasue env.reset from gym seeds its own
+    #  prng
+    random = np.random.default_rng(seed)
 
     if not os.path.exists(f'figures/{data}'):
         os.makedirs(f'figures/{data}')
@@ -213,7 +219,7 @@ if __name__ == '__main__':
         print('WIQL')
         print('-------------------------------------------------')
         start                  = time.time()
-        rewards['wiql']        = WIQL(simulator, n_episodes, n_epochs)
+        rewards['wiql']        = WIQL(simulator, n_episodes, n_epochs, random=random)
         runtimes['wiql']       = time.time() - start
 
     if 'random' in use_algos: # random policy
@@ -221,7 +227,7 @@ if __name__ == '__main__':
         print('random policy')
         print('-------------------------------------------------')
         start                  = time.time()
-        rewards['random']      = random_policy(simulator, n_episodes, n_epochs)
+        rewards['random']      = random_policy(simulator, n_episodes, n_epochs, random=random)
         runtimes['random']     = time.time() - start
 
     print('-------------------------------------------------')

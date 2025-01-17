@@ -82,6 +82,8 @@ class RMABSimulator(gym.Env):
 
     def reset_instance(self):
         """ reset to a new environment instance """
+        # XXX TODO use .np_random form gym!!!!
+
         self.instance_count += 1
 
         # get new cohort members

@@ -3,6 +3,8 @@
 import numpy as np
 import heapq
 
+from numpy.random import Generator
+
 from uc_whittle import Memoizer
 from compute_whittle import arm_compute_whittle
 
@@ -73,7 +75,7 @@ def optimal_policy(env, n_episodes, n_epochs, discount):
     return all_reward
 
 
-def random_policy(env, n_episodes, n_epochs):
+def random_policy(env, n_episodes, n_epochs, *, random: Generator):
     """ random action each timestep """
     N         = env.cohort_size
     n_states  = env.number_states
@@ -85,6 +87,7 @@ def random_policy(env, n_episodes, n_epochs):
 
     all_reward = np.zeros((n_epochs, T + 1))
 
+    # n_epochs is n_replications!
     for epoch in range(n_epochs):
         if epoch != 0:
             env.reset_instance()
@@ -95,7 +98,7 @@ def random_policy(env, n_episodes, n_epochs):
             state = env.observe()
 
             # select arms at random
-            selected_idx = np.random.choice(N, size=budget, replace=False)
+            selected_idx = random.choice(N, size=budget, replace=False)
             action = np.zeros(N, dtype=np.int8)
             action[selected_idx] = 1
 
@@ -109,7 +112,7 @@ def random_policy(env, n_episodes, n_epochs):
     return all_reward
 
 
-def WIQL(env, n_episodes, n_epochs):
+def WIQL(env, n_episodes, n_epochs, *, random: Generator):
     """ Whittle index-based Q-Learning
     [Biswas et al. 2021]
 
@@ -132,6 +135,7 @@ def WIQL(env, n_episodes, n_epochs):
         assert 0 <= c <= 1
         return c
 
+    # n_epochs is n_replications!
     for epoch in range(n_epochs):
         if epoch != 0:
             env.reset_instance()
@@ -149,8 +153,8 @@ def WIQL(env, n_episodes, n_epochs):
             epsilon = N / (N + t)
 
             # with probability epsilon, select B arms uniformly at random
-            if np.random.binomial(1, epsilon):
-                selected_idx = np.random.choice(N, size=budget, replace=False)
+            if random.binomial(1, epsilon):
+                selected_idx = random.choice(N, size=budget, replace=False)
             else:
                 state_lamb_vals = np.array([lamb_vals[i, state[i]] for i in range(N)])
                 # select top arms according to their lambda values
