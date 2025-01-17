@@ -1,7 +1,6 @@
 """ UC Whittle """
 
 import warnings
-import random
 import numpy as np
 import heapq  # priority queue
 
@@ -37,7 +36,8 @@ def UCWhittle(env, n_episodes, n_epochs, discount, alpha, method='QP', VERBOSE=F
     memoizer = Memoizer(method)
 
     for epoch in range(n_epochs):
-        if epoch != 0: env.reset_instance()
+        if epoch != 0:
+            env.reset_instance()
 
         n_pulls  = np.zeros((N, n_states, n_actions))  # number of pulls
         cum_prob = np.zeros((N, n_states, n_actions))  # transition probability estimates for going to ENGAGING state
@@ -65,11 +65,12 @@ def UCWhittle(env, n_episodes, n_epochs, discount, alpha, method='QP', VERBOSE=F
             # execute chosen policy; observe reward and next state
             next_state, reward, done, _ = env.step(action)
 
-            if done and t < T: env.reset()
+            if done and t < T:
+                env.reset()
 
             # update estimates
             for i in range(N):
-                for s in range(n_states): # pick states with B largest WI
+                for s in range(n_states):  # pick states with B largest WI
                     a = action[i]
                     n_pulls[i, s, a] += 1
                     if next_state[i] == 1:
@@ -116,12 +117,14 @@ def extreme_points_step(est_p, conf_p, state, discount, budget, memoizer):
         check_set_val = memoizer.check_set(arm_transitions, state[i])
         if check_set_val != -1:
             state_WI[i] = check_set_val
+
         else:
             state_WI[i] = arm_compute_whittle(arm_transitions, state[i], discount, subsidy_break=min_chosen_subsidy)
             memoizer.add_set(arm_transitions, state[i], state_WI[i])
 
         if len(top_WI) < budget:
             heapq.heappush(top_WI, (state_WI[i], i))
+
         else:
             # add state_WI to heap
             heapq.heappushpop(top_WI, (state_WI[i], i))
@@ -252,6 +255,7 @@ def solve_QP_per_arm(p_lcb, p_ucb, s0, discount, subsidy_break, approach):
             if objbnd < subsidy_break:
                 # print(f'  gurobi terminate! {objbnd:.3f}')
                 what.terminate()
+
         elif where == GRB.Callback.MIPSOL:
             objbnd = what.cbGet(GRB.Callback.MIPSOL_OBJBST)
             if objbnd < subsidy_break:
@@ -339,7 +343,8 @@ def solve_QP_per_arm(p_lcb, p_ucb, s0, discount, subsidy_break, approach):
     # get optimal subsidy
     try:
         opt_subsidy = subsidy.x
-    except: # Error as err:
+
+    except Exception:  # Error as err:
         print(f'can\'t get subsidy. model status = {model.status}, state {s0}, lcb = {p_lcb.flatten().round(3)}, ucb = {p_ucb.flatten().round(3)}')
 
         return subsidy.ub
@@ -352,7 +357,6 @@ if __name__ == '__main__':
     seed    = 42
 
     np.random.seed(seed)
-    random.seed(seed)
 
     # initialize RMAB simulator
     all_population  = 2 #10#10 # 10000  # num beneficiaries
