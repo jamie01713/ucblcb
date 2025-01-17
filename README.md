@@ -31,5 +31,5 @@ micromamba create -n ucblcb                    \
 ## Running experiments
 
 ```bash
-python main.py -P 100 -N 100 -T 500 -B 20 -E 30
+python main.py -N 100 -T 500 -B 20 -E 30
 ```
