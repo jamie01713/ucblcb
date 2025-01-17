@@ -68,7 +68,7 @@ class RMABSimulator(gym.Env):
         self.cohort_selection  = np.zeros((n_instances, cohort_size), int)
         self.first_init_states = np.zeros((n_instances, n_episodes, cohort_size), int)
         for i in range(n_instances):
-            self.cohort_selection[i, :] = np.c(
+            self.cohort_selection[i, :] = np.random.choice(
                 a=self.all_population, size=self.cohort_size, replace=False
             )
             print('cohort', self.cohort_selection[i, :])
