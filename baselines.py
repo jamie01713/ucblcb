@@ -1,10 +1,8 @@
 """ baseline algorithms """
 
 import numpy as np
-import random
 import heapq
 
-from simulator import RMABSimulator, random_valid_transition
 from uc_whittle import Memoizer
 from compute_whittle import arm_compute_whittle
 
@@ -37,7 +35,7 @@ def optimal_policy(env, n_episodes, n_epochs, discount):
             # compute whittle index for each arm
             state_WI = np.zeros(N)
             top_WI = []
-            min_chosen_subsidy = -1 #0
+            min_chosen_subsidy = -1  # 0
             for i in range(N):
                 arm_transitions = true_transitions[i, :, :, 1]
 
@@ -46,7 +44,9 @@ def optimal_policy(env, n_episodes, n_epochs, discount):
                 if check_set_val != -1:
                     state_WI[i] = check_set_val
                 else:
-                    state_WI[i] = arm_compute_whittle(arm_transitions, state[i], discount, min_chosen_subsidy)
+                    state_WI[i] = arm_compute_whittle(
+                        arm_transitions, state[i], discount, min_chosen_subsidy
+                    )
                     memoizer.add_set(arm_transitions, state[i], state_WI[i])
 
                 if len(top_WI) < budget:
@@ -65,7 +65,8 @@ def optimal_policy(env, n_episodes, n_epochs, discount):
 
             next_state, reward, done, _ = env.step(action)
 
-            if done and t < T: env.reset()
+            if done and t < T:
+                env.reset()
 
             all_reward[epoch, t] = reward
 
@@ -85,7 +86,9 @@ def random_policy(env, n_episodes, n_epochs):
     all_reward = np.zeros((n_epochs, T + 1))
 
     for epoch in range(n_epochs):
-        if epoch != 0: env.reset_instance()
+        if epoch != 0:
+            env.reset_instance()
+
         print('first state', env.observe())
         all_reward[epoch, 0] = env.get_reward()
         for t in range(1, T + 1):
@@ -98,7 +101,8 @@ def random_policy(env, n_episodes, n_epochs):
 
             next_state, reward, done, _ = env.step(action)
 
-            if done and t < T: env.reset()
+            if done and t < T:
+                env.reset()
 
             all_reward[epoch, t] = reward
 
@@ -129,7 +133,8 @@ def WIQL(env, n_episodes, n_epochs):
         return c
 
     for epoch in range(n_epochs):
-        if epoch != 0: env.reset_instance()
+        if epoch != 0:
+            env.reset_instance()
 
         # initialize
         Q_vals    = np.zeros((N, n_states, n_actions))
@@ -150,7 +155,7 @@ def WIQL(env, n_episodes, n_epochs):
                 state_lamb_vals = np.array([lamb_vals[i, state[i]] for i in range(N)])
                 # select top arms according to their lambda values
                 selected_idx = np.argpartition(state_lamb_vals, -budget)[-budget:]
-                selected_idx = selected_idx[np.argsort(state_lamb_vals[selected_idx])][::-1] # sort indices
+                selected_idx = selected_idx[np.argsort(state_lamb_vals[selected_idx])][::-1]  # sort indices
 
             action = np.zeros(N, dtype=np.int8)
             action[selected_idx] = 1
@@ -158,10 +163,11 @@ def WIQL(env, n_episodes, n_epochs):
             # take suitable actions on arms
             # execute chosen policy; observe reward and next state
             next_state, reward, done, _ = env.step(action)
-            if done and t < T: env.reset()
+            if done and t < T:
+                env.reset()
 
             # update Q, lambda
-            c = .5 # None
+            c = .5  # None
             for i in range(N):
                 for s in range(n_states):
                     for a in range(n_actions):

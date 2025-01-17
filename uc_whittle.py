@@ -1,6 +1,5 @@
 """ UC Whittle """
 
-import sys
 import warnings
 import random
 import numpy as np
@@ -12,6 +11,7 @@ from gurobipy import GRB
 from simulator import RMABSimulator, random_valid_transition
 from compute_whittle import arm_compute_whittle
 from utils import Memoizer, get_valid_lcb_ucb, get_ucb_conf
+
 
 def reward(s):
     """ reward for a state is just its own value (reward is 1 for s=1, 0 for s=0) """
@@ -120,14 +120,12 @@ def extreme_points_step(est_p, conf_p, state, discount, budget, memoizer):
             state_WI[i] = arm_compute_whittle(arm_transitions, state[i], discount, subsidy_break=min_chosen_subsidy)
             memoizer.add_set(arm_transitions, state[i], state_WI[i])
 
-
         if len(top_WI) < budget:
             heapq.heappush(top_WI, (state_WI[i], i))
         else:
             # add state_WI to heap
             heapq.heappushpop(top_WI, (state_WI[i], i))
             min_chosen_subsidy = top_WI[0][0]  # smallest-valued item
-
 
     # pull K highest indices
     sorted_WI = np.argsort(state_WI)[::-1]
@@ -137,7 +135,6 @@ def extreme_points_step(est_p, conf_p, state, discount, budget, memoizer):
     action[sorted_WI[:budget]] = 1
 
     return action, state_WI
-
 
 
 def UCB_step(est_p, conf_p, state, discount, budget, memoizer):
@@ -177,7 +174,6 @@ def UCB_step(est_p, conf_p, state, discount, budget, memoizer):
             heapq.heappushpop(top_WI, (state_WI[i], i))
             min_chosen_subsidy = top_WI[0][0]  # smallest-valued item
 
-
     # pull K highest indices
     sorted_WI = np.argsort(state_WI)[::-1]
     # print('state_WI', np.round(state_WI, 2))
@@ -186,7 +182,6 @@ def UCB_step(est_p, conf_p, state, discount, budget, memoizer):
     action[sorted_WI[:budget]] = 1
 
     return action, state_WI
-
 
 
 def QP_step(est_p, conf_p, state, discount, budget, memoizer, approach=None):
@@ -224,7 +219,6 @@ def QP_step(est_p, conf_p, state, discount, budget, memoizer, approach=None):
             heapq.heappushpop(top_WI, (state_WI[i], i))
             min_chosen_subsidy = top_WI[0][0]  # smallest-valued item
 
-
     # get action corresponding to optimal subsidy
     # pull K highest indices
     sorted_WI = np.argsort(state_WI)[::-1]
@@ -244,10 +238,9 @@ def solve_QP_per_arm(p_lcb, p_ucb, s0, discount, subsidy_break, approach):
     p_ucb = p_ucb + epsilon
     p_lcb = p_lcb - epsilon
 
-    max_iterations = 100 # max number of simplex iterations
+    max_iterations = 100  # max number of simplex iterations
 
     n_states, n_actions = p_lcb.shape
-
 
     def early_termination(what, where):
         """ callback for gurobi early termination, to incorporate subsidy_break
@@ -273,36 +266,59 @@ def solve_QP_per_arm(p_lcb, p_ucb, s0, discount, subsidy_break, approach):
 
     # define variables ---------------------------------------------------------
     # variables to estimate transition probability (within LCB and UCB)
-    p        = [[model.addVar(vtype=GRB.CONTINUOUS, lb=p_lcb[s][a], ub=p_ucb[s][a], name=f'p_{s}{a}')
-                for a in range(n_actions)] for s in range(n_states)]
+    p = [
+        [
+            model.addVar(
+                vtype=GRB.CONTINUOUS, lb=p_lcb[s][a], ub=p_ucb[s][a], name=f'p_{s}{a}'
+            ) for a in range(n_actions)
+        ] for s in range(n_states)
+    ]
 
     # variable to learn subsidy
     subsidy  = model.addVar(vtype=GRB.CONTINUOUS, lb=0.0, ub=100, name='subsidy')  #GRB.INFINITY --> gives status 5 (unbounded)
 
     # variable for value functions
-    value_sa = [[model.addVar(vtype=GRB.CONTINUOUS, name=f'v_{s}_{a}')
-                for a in range(n_actions)] for s in range(n_states)]
-    value_s  = [model.addVar(vtype=GRB.CONTINUOUS, name=f'v_{s}')
-                for s in range(n_states)]
-
+    value_sa = [
+        [
+            model.addVar(
+                vtype=GRB.CONTINUOUS, name=f'v_{s}_{a}'
+            ) for a in range(n_actions)
+        ] for s in range(n_states)
+    ]
+    value_s = [
+        model.addVar(vtype=GRB.CONTINUOUS, name=f'v_{s}') for s in range(n_states)
+    ]
 
     # define objective ---------------------------------------------------------
     if approach == 'min': # try subsidy-minimizing QP
         model.setObjective(subsidy, GRB.MINIMIZE)
+
     else:
         model.setObjective(subsidy, GRB.MAXIMIZE)
 
-
     # define constraints -------------------------------------------------------
     # value function (s, a)
-    model.addConstrs(((value_sa[s][a] == subsidy * (a == 0) + reward(s) + discount * (value_s[1] * p[s][a] +
-                                                                                      value_s[0] * (1 - p[s][a])))
-        for s in range(n_states) for a in range(n_actions)), 'value_sa')
+    model.addConstrs(
+        (
+            (
+                value_sa[s][a] == subsidy * (a == 0) + reward(s) + discount * (
+                    value_s[1] * p[s][a] + value_s[0] * (1 - p[s][a])
+                )
+            ) for s in range(n_states) for a in range(n_actions)
+        ),
+        'value_sa',
+    )
 
     # value function (s)
-    model.addConstrs(((value_s[s] == gp.max_([value_sa[s][0], value_sa[s][1]]))
-                       # value_s[s] == gp.max_([value_sa[s][a] for a in range(n_actions)]))
-        for s in range(n_states)), 'value_s')
+    model.addConstrs(
+        (
+            (
+                # value_s[s] == gp.max_([value_sa[s][a] for a in range(n_actions)]))
+                value_s[s] == gp.max_([value_sa[s][0], value_sa[s][1]])
+            ) for s in range(n_states)
+        ),
+        'value_s',
+    )
 
     # add constraints that enforce probability validity
     model.addConstrs((p[s][1] >= p[s][0] for s in range(n_states)), 'good_to_act')  # always good to act
@@ -311,10 +327,8 @@ def solve_QP_per_arm(p_lcb, p_ucb, s0, discount, subsidy_break, approach):
     # valid subsidy
     model.addConstr((value_sa[s0][0] <= value_sa[s0][1]), 'valid_subsidy')
 
-
     # optimize -----------------------------------------------------------------
     model.optimize(early_termination)
-    
 
     if model.status != GRB.OPTIMAL:
         warnings.warn(f'Uh oh! Model is not optimal; status is {model.status}')
@@ -352,8 +366,8 @@ if __name__ == '__main__':
 
     # import pdb; pdb.set_trace()
 
-    if VERBOSE: print(f'transitions ----------------\n{np.round(all_transitions, 2)}')
-
+    if VERBOSE:
+        print(f'transitions ----------------\n{np.round(all_transitions, 2)}')
 
     simulator = RMABSimulator(all_population, all_features, all_transitions, cohort_size, episode_len, budget, number_states=n_states)
 
