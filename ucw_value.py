@@ -13,6 +13,7 @@ from gurobipy import GRB
 from compute_whittle import arm_compute_whittle
 from utils import Memoizer, get_valid_lcb_ucb, get_ucb_conf
 
+
 def UCWhittle_value(env, n_episodes, n_epochs, discount, alpha, VERBOSE=False):
     """
     value-based UCWhittle
@@ -27,7 +28,7 @@ def UCWhittle_value(env, n_episodes, n_epochs, discount, alpha, VERBOSE=False):
 
     env.reset_all()
 
-    print(f'solving UCWhittle using method: VALUE-BASED')
+    print('solving UCWhittle using method: VALUE-BASED')
 
     memoizer_p_s = Memoizer(method='p_s')
     memoizer_lcb_ucb_s_lamb = Memoizer(method='lcb_ucb_s_lamb')
@@ -35,7 +36,8 @@ def UCWhittle_value(env, n_episodes, n_epochs, discount, alpha, VERBOSE=False):
     all_reward = np.zeros((n_epochs, T + 1))
 
     for epoch in range(n_epochs):
-        if epoch != 0: env.reset_instance()
+        if epoch != 0:
+            env.reset_instance()
 
         n_pulls  = np.zeros((N, n_states, n_actions))  # number of pulls
         cum_prob = np.zeros((N, n_states, n_actions))  # transition probability estimates for going to ENGAGING state
@@ -44,7 +46,7 @@ def UCWhittle_value(env, n_episodes, n_epochs, discount, alpha, VERBOSE=False):
         all_reward[epoch, 0] = env.get_reward()
 
         t = 1  # total timestep across all episodes
-        lamb_val = 0 # initialize subsidy for acting to 0
+        lamb_val = 0  # initialize subsidy for acting to 0
         for episode in range(n_episodes):
 
             ####################################################
@@ -56,10 +58,14 @@ def UCWhittle_value(env, n_episodes, n_epochs, discount, alpha, VERBOSE=False):
                 # precompute
                 ####################################################
 
-                est_p, conf_p = get_ucb_conf(cum_prob, n_pulls, t, alpha, env.episode_count)
+                est_p, conf_p = get_ucb_conf(
+                    cum_prob, n_pulls, t, alpha, env.episode_count
+                )
 
                 # compute value for each arm, for each state
-                opt_values, opt_p = QP_value_step(est_p, conf_p, discount, lamb_val, budget, memoizer_lcb_ucb_s_lamb)
+                opt_values, opt_p = QP_value_step(
+                    est_p, conf_p, discount, lamb_val, budget, memoizer_lcb_ucb_s_lamb
+                )
 
                 ####################################################
                 # solve value iteration to get WI, using opt values
@@ -77,12 +83,16 @@ def UCWhittle_value(env, n_episodes, n_epochs, discount, alpha, VERBOSE=False):
                     check_set_val = memoizer_p_s.check_set(arm_transitions, state[i])
                     if check_set_val != -1:
                         state_WI[i] = check_set_val
+
                     else:
-                        state_WI[i] = arm_compute_whittle(arm_transitions, state[i], discount, subsidy_break=min_chosen_subsidy)
+                        state_WI[i] = arm_compute_whittle(
+                            arm_transitions, state[i], discount, subsidy_break=min_chosen_subsidy
+                        )
                         memoizer_p_s.add_set(arm_transitions, state[i], state_WI[i])
 
                     if len(top_WI) < budget:
                         heapq.heappush(top_WI, (state_WI[i], i))
+
                     else:
                         # add state_WI to heap
                         heapq.heappushpop(top_WI, (state_WI[i], i))
@@ -102,11 +112,12 @@ def UCWhittle_value(env, n_episodes, n_epochs, discount, alpha, VERBOSE=False):
                 # execute chosen policy; observe reward and next state
                 next_state, reward, done, _ = env.step(action)
 
-                if done and t < T: env.reset()
+                if done and t < T:
+                    env.reset()
 
                 # update estimates
                 for i in range(N):
-                    for s in range(n_states): # pick states with B largest WI
+                    for s in range(n_states):  # pick states with B largest WI
                         a = action[i]
                         n_pulls[i, s, a] += 1
                         if next_state[i] == 1:
@@ -123,7 +134,6 @@ def UCWhittle_value(env, n_episodes, n_epochs, discount, alpha, VERBOSE=False):
                 t += 1
 
     return all_reward
-
 
 
 def QP_value_step(est_p, conf_p, discount, lamb_val, budget, memoizer_lcb_ucb_s_lamb):
@@ -191,53 +201,79 @@ def ucw_value_qp(p_lcb, p_ucb, s0, lamb_val, discount, subsidy_break):
                 # print(f'  gurobi terminate! {objbnd:.3f}')
                 what.terminate()
 
-    max_iterations = 100 # max number of simplex iterations
+    max_iterations = 100  # max number of simplex iterations
 
     n_states, n_actions = p_lcb.shape
 
     # set up Gurobi optimizer --------------------------------------------------
     model = gp.Model('UCWhittle_QP')
-    model.setParam('OutputFlag', 0) # silence output
+    model.setParam('OutputFlag', 0)  # silence output
     model.setParam('NonConvex', 2)  # nonconvex constraints
-    model.setParam('IterationLimit', max_iterations) # limit number of simplex iterations
+    model.setParam('IterationLimit', max_iterations)  # limit number of simplex iterations
     # model.setParam('TimeLimit', 100) # seconds
     # model.setParam('DualReductions', 1) # if we get Gurobi error status = 4: https://www.gurobi.com/documentation/9.5/refman/dualreductions.html
 
-
     # define variables ---------------------------------------------------------
     # variables to estimate transition probability (within LCB and UCB)
-    p       = [[model.addVar(vtype=GRB.CONTINUOUS, lb=p_lcb[s][a], ub=p_ucb[s][a], name=f'p_{s}{a}')
-                for a in range(n_actions)] for s in range(n_states)]
+    p = [
+        [
+            model.addVar(
+                vtype=GRB.CONTINUOUS, lb=p_lcb[s][a], ub=p_ucb[s][a], name=f'p_{s}{a}'
+            )
+            for a in range(n_actions)
+        ] for s in range(n_states)
+    ]
 
     # variable for Q-value
-    q_val   = [[model.addVar(vtype=GRB.CONTINUOUS, name=f'q_{s}_{a}')
-                for a in range(n_actions)] for s in range(n_states)]
-    value_s = [model.addVar(vtype=GRB.CONTINUOUS, name=f'v_{s}')
-                for s in range(n_states)]
-
+    q_val = [
+        [
+            model.addVar(
+                vtype=GRB.CONTINUOUS, name=f'q_{s}_{a}'
+            ) for a in range(n_actions)
+        ] for s in range(n_states)
+    ]
+    value_s = [
+        model.addVar(vtype=GRB.CONTINUOUS, name=f'v_{s}') for s in range(n_states)
+    ]
 
     # define objective ---------------------------------------------------------
     model.setObjective(value_s[s0], GRB.MAXIMIZE)
 
-
     # define constraints -------------------------------------------------------
     # Q function (s, a)
-    model.addConstrs(((q_val[s][a] == -lamb_val * a + reward(s) + discount * (value_s[1] * p[s][a] +
-                                                                              value_s[0] * (1 - p[s][a])))
-        for s in range(n_states) for a in range(n_actions)), 'q_val')
+    model.addConstrs(
+        (
+            (
+                q_val[s][a] == -lamb_val * a + reward(s) + discount * (
+                    value_s[1] * p[s][a] + value_s[0] * (1 - p[s][a])
+                )
+            ) for s in range(n_states) for a in range(n_actions)
+        ),
+        'q_val',
+    )
 
     # value function (s)
-    model.addConstrs(((value_s[s] == gp.max_([q_val[s][0], q_val[s][1]]))
-                       # value_s[s] == gp.max_([value_sa[s][a] for a in range(n_actions)]))
-        for s in range(n_states)), 'value_s')
+    model.addConstrs(
+        (
+            (
+                # value_s[s] == gp.max_([value_sa[s][a] for a in range(n_actions)]))
+                value_s[s] == gp.max_([q_val[s][0], q_val[s][1]])
+            ) for s in range(n_states)
+        ),
+        'value_s',
+    )
 
     # add constraints that enforce probability validity
-    model.addConstrs((p[s][1] >= p[s][0] for s in range(n_states)), 'good_to_act')  # always good to act
-    model.addConstrs((p[1][a] >= p[0][a] for a in range(n_actions)), 'good_state')  # always good to be in good state
+    model.addConstrs(
+        (p[s][1] >= p[s][0] for s in range(n_states)), 'good_to_act'
+    )  # always good to act
+
+    model.addConstrs(
+        (p[1][a] >= p[0][a] for a in range(n_actions)), 'good_state'
+    )  # always good to be in good state
 
     # valid subsidy
     # model.addConstr((value_sa[s0][0] <= value_sa[s0][1]), 'valid_subsidy')
-
 
     # optimize -----------------------------------------------------------------
     model.optimize(early_termination)  # early_termination - set callback
@@ -247,7 +283,8 @@ def ucw_value_qp(p_lcb, p_ucb, s0, lamb_val, discount, subsidy_break):
 
     try:
         opt_value_s0 = value_s[s0].x
-    except:
+
+    except Exception:
         # https://www.gurobi.com/documentation/9.5/refman/attributes.html#sec:Attributes
         print(f'can\'t get subsidy value. model status is {model.status}')
         print(f'  state {s0}, lcb = {p_lcb.flatten().round(3)}, ucb = {p_ucb.flatten().round(3)}')
@@ -260,12 +297,12 @@ def ucw_value_qp(p_lcb, p_ucb, s0, lamb_val, discount, subsidy_break):
 
     try:
         opt_p = np.array([[p[s][a].x for a in range(n_actions)] for s in range(n_states)])
-    except:
+
+    except Exception:
         print(f'can\'t get p values. model status is {model.status}')
         print(f'  state {s0}, lcb = {p_lcb.flatten().round(3)}, ucb = {p_ucb.flatten().round(3)}')
 
         opt_p = (p_lcb + p_ucb) / 2
-
 
     # print('subsidy  ', subsidy.x)
     # print('prob     ', p[0][0].x, p[0][1].x, p[1][0].x, p[1][1].x)

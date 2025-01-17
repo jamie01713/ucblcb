@@ -8,17 +8,23 @@ run:
 import numpy as np
 import pandas as pd
 import random
-import time, datetime
-import sys, os
+import time
+import datetime
+import os
 import argparse
 
 import matplotlib.pyplot as plt
 from ucb_lcb import UcbLcb
-from simulator import RMABSimulator, random_valid_transition, random_valid_transition_round_down, synthetic_transition_small_window
+from simulator import RMABSimulator, random_valid_transition
 from uc_whittle import UCWhittle
 from ucw_value import UCWhittle_value
 from baselines import optimal_policy, random_policy, WIQL
-#from Generating_instance import random_transition
+# from Generating_instance import random_transition
+
+
+def get_armman_data():
+    raise NotImplementedError
+
 
 def smooth(rewards, weight=0.7):
     """ smoothed exponential moving average """
@@ -52,9 +58,7 @@ if __name__ == '__main__':
     parser.add_argument('--local',          '-L', help='if True, running locally (default False)', action='store_true')
     parser.add_argument('--prefix',         '-p', help='prefix for file writing', type=str, default='')
 
-
     args = parser.parse_args()
-
 
     # problem setup
     n_arms      = args.n_arms
@@ -64,7 +68,7 @@ if __name__ == '__main__':
 
     # solution/evaluation setup
     discount    = args.discount
-    alpha       = args.alpha #7 - too pessimistic #0.1 - too optimistic
+    alpha       = args.alpha  # 7 - too pessimistic #0.1 - too optimistic
 
     # experiment setup
     seed        = args.seed
@@ -77,7 +81,6 @@ if __name__ == '__main__':
     data        = args.data
     # real_data   = args.real_data
 
-
     # separate out things we don't want to execute on the cluster
     if LOCAL:
         import matplotlib as mpl
@@ -86,13 +89,11 @@ if __name__ == '__main__':
     np.random.seed(seed)
     random.seed(seed)
 
-
     if not os.path.exists(f'figures/{data}'):
         os.makedirs(f'figures/{data}')
 
     if not os.path.exists(f'results/{data}'):
         os.makedirs(f'results/{data}')
-
 
     # -------------------------------------------------
     # initialize RMAB simulator
@@ -119,19 +120,27 @@ if __name__ == '__main__':
         print('synthetic data')
         all_population_size = n_arms # number of random arms to generate
         all_transitions = random_valid_transition(all_population_size, n_states, n_actions)
-        #all_transitions = random_valid_transition_round_down(all_population_size, n_states, n_actions)
-        #all_transitions=random_transition(all_population_size,n_states,n_actions)
+        # all_transitions = random_valid_transition_round_down(all_population_size, n_states, n_actions)
+        # all_transitions=random_transition(all_population_size,n_states,n_actions)
 
     else:
         raise Exception(f'dataset {data} not implemented')
 
-
     all_features = np.arange(all_population_size)
 
-    if VERBOSE: print(f'transitions ----------------\n{np.round(all_transitions, 2)}')
-    simulator = RMABSimulator(all_population_size, all_features, all_transitions,
-            n_arms, episode_len, n_epochs, n_episodes, budget, number_states=n_states)
-
+    if VERBOSE:
+        print(f'transitions ----------------\n{np.round(all_transitions, 2)}')
+    simulator = RMABSimulator(
+        all_population_size,
+        all_features,
+        all_transitions,
+        n_arms,
+        episode_len,
+        n_epochs,
+        n_episodes,
+        budget,
+        number_states=n_states
+    )
 
     # -------------------------------------------------
     # run comparisons
@@ -214,7 +223,7 @@ if __name__ == '__main__':
         start                  = time.time()
         rewards['random']      = random_policy(simulator, n_episodes, n_epochs)
         runtimes['random']     = time.time() - start
-    
+
     print('-------------------------------------------------')
     print('runtime')
     for algo in use_algos:
@@ -232,7 +241,6 @@ if __name__ == '__main__':
 
     str_time = datetime.datetime.now().strftime('%d-%m-%Y_%H:%M:%S')
 
-
     # -------------------------------------------------
     # write out CSV
     # -------------------------------------------------
@@ -240,10 +248,22 @@ if __name__ == '__main__':
         data_df = pd.DataFrame(data=rewards[algo], columns=x_vals)
 
         runtime = runtimes[algo] / n_epochs
-        prepend_df = pd.DataFrame({'seed': seed, 'n_arms': n_arms, 'budget': budget,
-                                    'n_states': n_states, 'n_actions': n_actions,
-                                    'discount': discount, 'n_episodes': n_episodes, 'episode_len': episode_len,
-                                    'n_epochs': n_epochs, 'runtime': runtime, 'time': str_time}, index=[0])
+        prepend_df = pd.DataFrame(
+            {
+                'seed': seed,
+                'n_arms': n_arms,
+                'budget': budget,
+                'n_states': n_states,
+                'n_actions': n_actions,
+                'discount': discount,
+                'n_episodes': n_episodes,
+                'episode_len': episode_len,
+                'n_epochs': n_epochs,
+                'runtime': runtime,
+                'time': str_time
+            },
+            index=[0],
+        )
 
         prepend_df = pd.concat([prepend_df]*n_epochs, ignore_index=True)
 
@@ -269,20 +289,24 @@ if __name__ == '__main__':
     plt.figure()
     for algo in use_algos:
         plt.plot(x_vals, get_cum_sum(rewards[algo]), c=colors[algo], label=algo)
+
     plt.legend()
     plt.xlabel(f'timestep $t$ ({n_episodes} episodes of length {episode_len})')
     plt.ylabel('average cumulative reward')
     plt.title(f'{data} - N={n_arms}, B={budget}, discount={discount}, {n_epochs} epochs')
     plt.savefig(f'figures/{data}/cum_reward_{exp_name_out}_{str_time}.pdf')
-    if LOCAL: plt.show()
+    if LOCAL:
+        plt.show()
 
     # plot average reward
     plt.figure()
     for algo in use_algos:
         plt.plot(x_vals, smooth(rewards[algo].mean(axis=0)), c=colors[algo], label=algo)
+
     plt.legend()
     plt.xlabel(f'timestep $t$ ({n_episodes} episodes of length {episode_len}')
     plt.ylabel('average reward')
     plt.title(f'{data} - N={n_arms}, budget={budget}, discount={discount}, {n_epochs} epochs')
     plt.savefig(f'figures/{data}/avg_reward_{exp_name_out}_{str_time}.pdf')
-    if LOCAL: plt.show()
+    if LOCAL:
+        plt.show()

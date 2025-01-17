@@ -5,16 +5,19 @@ POSSIBLE OPTIMIZATIONS TO HELP SPEED
 - keep track of top k WIs so far. then in future during binary search, if we go below that WI just quit immediately
 """
 
-import sys
 import numpy as np
-
-import heapq  # priority queue
 
 whittle_threshold = 1e-4
 value_iteration_threshold = 1e-2
 
 
-def arm_value_iteration(transitions, state, lamb_val, discount, threshold=value_iteration_threshold):
+class Error(RuntimeError):
+    pass
+
+
+def arm_value_iteration(
+    transitions, state, lamb_val, discount, threshold=value_iteration_threshold
+):
     """ value iteration for a single arm at a time
 
     value iteration for the MDP defined by transitions with lambda-adjusted reward function
@@ -38,8 +41,7 @@ def arm_value_iteration(transitions, state, lamb_val, discount, threshold=value_
         # calculate Q-function
         Q_func = np.zeros((n_states, n_actions))
         for s in range(n_states):
-            Q_val_s0 = 0
-            Q_val_s1 = 0
+            # Q_val_s0 = Q_val_s1 = 0.0
             for a in range(n_actions):
                 # transitioning to state = 0
                 Q_func[s, a] += (1 - transitions[s, a]) * (reward(s, a) + discount * value_func[0])
@@ -61,7 +63,9 @@ def get_init_bounds(transitions):
     return lb, ub
 
 
-def arm_compute_whittle(transitions, state, discount, subsidy_break, eps=whittle_threshold):
+def arm_compute_whittle(
+    transitions, state, discount, subsidy_break, eps=whittle_threshold
+):
     """
     compute whittle index for a single arm using binary search
 
@@ -71,8 +75,8 @@ def arm_compute_whittle(transitions, state, discount, subsidy_break, eps=whittle
     param eps: epsilon convergence
     returns Whittle index
     """
-    lb, ub = get_init_bounds(transitions) # return lower and upper bounds on WI
-    top_WI = []
+    lb, ub = get_init_bounds(transitions)  # return lower and upper bounds on WI
+    # top_WI = []
     while abs(ub - lb) > eps:
         lamb_val = (lb + ub) / 2
         # print('lamb', lamb_val, lb, ub)

@@ -1,6 +1,7 @@
 import gymnasium as gym
 import numpy as np
 
+
 class RMABSimulator(gym.Env):
     '''
     This simulator simulates the interaction with a set of arms with unknown transition probabilities
@@ -29,8 +30,18 @@ class RMABSimulator(gym.Env):
 
     '''
 
-    def __init__(self, all_population, all_features, all_transitions, cohort_size, episode_len, n_instances, n_episodes, budget,
-            number_states=2):
+    def __init__(
+        self,
+        all_population,
+        all_features,
+        all_transitions,
+        cohort_size,
+        episode_len,
+        n_instances,
+        n_episodes,
+        budget,
+        number_states=2,
+    ):
         '''
         Initialization
         '''
@@ -54,10 +65,12 @@ class RMABSimulator(gym.Env):
         self.timestep       = 0
 
         # track indices of cohort members
-        self.cohort_selection  = np.zeros((n_instances, cohort_size)).astype(int)
-        self.first_init_states = np.zeros((n_instances, n_episodes, cohort_size)).astype(int)
+        self.cohort_selection  = np.zeros((n_instances, cohort_size), int)
+        self.first_init_states = np.zeros((n_instances, n_episodes, cohort_size), int)
         for i in range(n_instances):
-            self.cohort_selection[i, :] = np.random.choice(a=self.all_population, size=self.cohort_size, replace=False)
+            self.cohort_selection[i, :] = np.c(
+                a=self.all_population, size=self.cohort_size, replace=False
+            )
             print('cohort', self.cohort_selection[i, :])
             for ep in range(n_episodes):
                 self.first_init_states[i, ep, :] = self.sample_initial_states(self.cohort_size)
@@ -80,7 +93,6 @@ class RMABSimulator(gym.Env):
         # current state initialization
         self.timestep    = 0
         self.states      = self.first_init_states[self.instance_count, self.episode_count, :]  # np.copy??
-
 
         return self.observe()
 
@@ -158,8 +170,10 @@ class RMABSimulator(gym.Env):
 
     def get_reward(self):
         return np.sum(self.states)
+
     def get_rewards(self):
         return self.states
+
 
 def random_transition(all_population, n_states, n_actions):
     all_transitions = np.random.random((all_population, n_states, n_actions, n_states))
@@ -175,19 +189,19 @@ def assert_valid_transition(transitions):
     for i in range(N):
         for s in range(n_states):
             # ensure acting is always good
-            if transitions[i,s,1,1] < transitions[i,s,0,1]:
+            if transitions[i, s, 1, 1] < transitions[i, s, 0, 1]:
                 bad = True
-                print(f'acting should always be good! {transitions[i,s,1,1]:.3f} < {transitions[i,s,0,1]:.3f}')
+                print(f'acting should always be good! {transitions[i, s, 1, 1]:.3f} < {transitions[i, s, 0, 1]:.3f}')
 
-            # assert transitions[i,s,1,1] >= transitions[i,s,0,1] + 1e-6, f'acting should always be good! {transitions[i,s,1,1]:.3f} < {transitions[i,s,0,1]:.3f}'
+            # assert transitions[i, s, 1,1] >= transitions[i, s, 0,1] + 1e-6, f'acting should always be good! {transitions[i, s, 1,1]:.3f} < {transitions[i, s, 0,1]:.3f}'
 
     for i in range(N):
         for a in range(n_actions):
             # ensure start state is always good
             # assert transitions[i,1,a,1] >= transitions[i,0,a,1] + 1e-6, f'good start state should always be good! {transitions[i,1,a,1]:.3f} < {transitions[i,0,a,1]:.3f}'
-            if transitions[i,1,a,1] < transitions[i,0,a,1]:
+            if transitions[i, 1, a, 1] < transitions[i, 0, a, 1]:
                 bad = True
-                print(f'good start state should always be good! {transitions[i,1,a,1]:.3f} < {transitions[i,0,a,1]:.3f}')
+                print(f'good start state should always be good! {transitions[i, 1, a, 1]:.3f} < {transitions[i, 0, a, 1]:.3f}')
     # assert bad != True
 
 
@@ -204,12 +218,12 @@ def random_valid_transition(all_population, n_states, n_actions):
     for i in range(all_population):
         for s in range(n_states):
             # ensure acting is always good
-            if transitions[i,s,1] < transitions[i,s,0]:
-                diff = 1 - transitions[i,s,0]
-                transitions[i,s,1] = transitions[i,s,0] + ( diff)
-                # temp=transitions[i,s,0]
-                # transitions[i,s,0]=transitions[i,s,1]
-                # transitions[i,s,1]=temp
+            if transitions[i, s, 1] < transitions[i, s, 0]:
+                diff = 1 - transitions[i, s, 0]
+                transitions[i, s, 1] = transitions[i, s, 0] + (diff)
+                # temp=transitions[i, s, 0]
+                # transitions[i, s, 0]=transitions[i, s, 1]
+                # transitions[i, s, 1]=temp
 
     # for i in range(all_population):
     #     for a in range(n_actions):
@@ -222,12 +236,11 @@ def random_valid_transition(all_population, n_states, n_actions):
     #             transitions[i,1,a]=temp
 
     full_transitions = np.zeros((all_population, n_states, n_actions, n_states))
-    full_transitions[:,:,:,1] = transitions
-    full_transitions[:,:,:,0] = 1 - transitions
+    full_transitions[:, :, :, 1] = transitions
+    full_transitions[:, :, :, 0] = 1 - transitions
 
     # return transitions
     return full_transitions
-
 
 
 def random_valid_transition_round_down(all_population, n_states, n_actions):
@@ -243,19 +256,20 @@ def random_valid_transition_round_down(all_population, n_states, n_actions):
     for i in range(all_population):
         for s in range(n_states):
             # ensure acting is always good
-            if transitions[i,s,1] < transitions[i,s,0]:
-                #transitions[i,s,0] = transitions[i,s,1] * np.random.rand()
-                transitions[i,s,0] = transitions[i,s,1] * 1/2
+            if transitions[i, s, 1] < transitions[i, s, 0]:
+
+                #transitions[i, s, 0] = transitions[i, s, 1] * np.random.rand()
+                transitions[i, s, 0] = transitions[i, s, 1] * 1/2
 
     for i in range(all_population):
         for a in range(n_actions):
             # ensure starting in good state is always good
-            if transitions[i,1,a] < transitions[i,0,a]:
-                transitions[i,0,a] = transitions[i,1,a] * np.random.rand()
+            if transitions[i, 1, a] < transitions[i, 0, a]:
+                transitions[i, 0, a] = transitions[i, 1, a] * np.random.rand()
 
     full_transitions = np.zeros((all_population, n_states, n_actions, n_states))
-    full_transitions[:,:,:,1] = transitions
-    full_transitions[:,:,:,0] = 1 - transitions
+    full_transitions[:, :, :, 1] = transitions
+    full_transitions[:, :, :, 0] = 1 - transitions
 
     return full_transitions
 
@@ -276,8 +290,8 @@ def synthetic_transition_small_window(all_population, n_states, n_actions, low, 
     for i in range(all_population):
         for s in range(n_states):
             # ensure acting is always good
-            if transitions[i,s,1] < transitions[i,s,0]:
-                transitions[i,s,0] = transitions[i,s,1] * np.random.rand()
+            if transitions[i, s, 1] < transitions[i, s, 0]:
+                transitions[i, s, 0] = transitions[i, s, 1] * np.random.rand()
 
     # for i in range(all_population):
     #     for a in range(n_actions):
@@ -293,11 +307,10 @@ def synthetic_transition_small_window(all_population, n_states, n_actions, low, 
     transitions = transitions * (high - low) * (max_val - min_val) + low
 
     full_transitions = np.zeros((all_population, n_states, n_actions, n_states))
-    full_transitions[:,:,:,1] = transitions
-    full_transitions[:,:,:,0] = 1 - transitions
+    full_transitions[:, :, :, 1] = transitions
+    full_transitions[:, :, :, 0] = 1 - transitions
 
     return full_transitions
-
 
 
 '''
@@ -312,7 +325,9 @@ if __name__ == '__main__':
     budget          = 20
     number_states   = 2
 
-    simulator = RMABSimulator(all_population, all_features, all_transitions, cohort_size, episode_len, budget)
+    simulator = RMABSimulator(
+        all_population, all_features, all_transitions, cohort_size, episode_len, budget
+    )
 
     for count in range(10):
         simulator.reset()
