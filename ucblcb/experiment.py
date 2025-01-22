@@ -60,8 +60,7 @@ def episode(
     assert isinstance(pol, BasePolicy), type(pol)
     assert isinstance(n_steps, int), n_steps
 
-    # the generator is consumed!
-    trace, random = [], default_rng(random)
+    random = default_rng(random)  # the PR generator `random` is consumed!
 
     def pol_update(batch):
         # side-effects from outer scope: `pol`, `random`
@@ -82,7 +81,7 @@ def episode(
     pol_decide = partial(pol.decide, *random.spawn(1))
 
     # interact with a new mdp env for `n_steps` to generate new experience
-    buffer = []
+    trace, buffer = [], []
     for step, sarx, done in rollout(env, pol_decide, n_steps):
         # save `sarx = (x_t, a_t, r_{t+1}, x_{t+1})`
         buffer.append(sarx)
@@ -106,8 +105,8 @@ def episode(
 
 
 def sq_spawn(
-    sq: SeedSequence, /, *shapes: tuple[int, ...], axis: int = 0
-) -> ndarray[SeedSequence]:
+    sq: SeedSequence | Generator, /, *shapes: tuple[int, ...], axis: int = 0
+) -> ndarray[SeedSequence | Generator]:
     """Prepare seeds for the experiment."""
 
     # produce shaped seed sequence spawns

@@ -1,6 +1,6 @@
 import numpy as np
 
-from numpy.random import default_rng, Generator
+from numpy.random import Generator
 from typing_extensions import Self
 
 from ..envs.base import Observation, Action, Reward
@@ -13,6 +13,16 @@ class BasePolicy:
 
     def __init__(self, n_actions: int, /) -> None:
         self.n_actions = n_actions
+
+    def reset(self, random: Generator = None, /):
+        """Re-initialize the policy's internal state.
+
+        Parameters
+        ----------
+        random: Generator, optional
+            Consumable PRNG instance.
+        """
+        pass
 
     def update(
         self,
