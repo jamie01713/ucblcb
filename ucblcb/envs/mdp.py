@@ -31,7 +31,7 @@ class MDP(Env):
 
     def __init__(self, random: Generator, /, kernels, rewards) -> None:
         self.kernels, self.rewards = self.validate(kernels, rewards)
-        self.random_ = default_rng(random)  # PRNG is consumed!
+        self.random_ = default_rng(random)  # the PRNG `random` is consumed!
 
     def reset(self) -> tuple[Observation, dict]:
         # sample the initial state at random
@@ -89,8 +89,7 @@ class MDP(Env):
         cls, random: Generator, /, kernels, rewards, *, n_processes: int = None
     ) -> Iterator["MDP"]:
         """Create instances of batched MDP by sampling from provided kernel-reward pairs."""
-
-        random = default_rng(random)  # the prng is consumed!
+        random = default_rng(random)  # the PRNG `random` is consumed!
 
         # check kernel-reward pair consistency
         kernels, rewards = cls.validate(kernels, rewards)

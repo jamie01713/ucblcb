@@ -3,10 +3,8 @@
 
 import numpy as np
 
-from numpy.random import default_rng  # noqa: F401
-
 from typing import Iterator
-from numpy.random import Generator
+from numpy.random import default_rng, Generator
 
 from .mdp import MDP
 
@@ -15,6 +13,7 @@ def binary_rmab_sampler(
     random: Generator, /, transitions, n_processes: int = None
 ) -> Iterator[MDP]:
     """Sampler for binary RMAB problems with good transition."""
+    random = default_rng(random)  # the PRNG `random` is consumed!
 
     # ensure binary state and action spaces
     *_, n_states, n_actions, n_states_ = transitions.shape
