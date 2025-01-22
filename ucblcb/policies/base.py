@@ -1,7 +1,7 @@
 from numpy.random import default_rng, Generator
 from typing_extensions import Self
 
-from ..envs import Observation, Action, Reward
+from ..envs.base import Observation, Action, Reward
 
 
 class BasePolicy:
