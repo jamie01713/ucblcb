@@ -37,7 +37,8 @@ def rollout(
 
         # `act` is `a_t` array of int of shape (P,)
         # x_t --policy-->> a_t
-        act = policy(obs)  # XXX `policy`, like env, can be stateful
+        # XXX `policy`, like env, can be stateful
+        act = policy(np.expand_dims(obs, 0))[0]
 
         # (x_t, a_t) --env-->> (r_{t+1}, x_{t+1})
         obs_, rew_, done, _ = env.step(act)

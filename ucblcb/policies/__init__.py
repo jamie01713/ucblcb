@@ -1,3 +1,3 @@
 # flake8: noqa: F401
 
-from .base import BasePolicy, BasePolicy as RandomPolicy
+from .base import BasePolicy, RandomSubsetPolicy
