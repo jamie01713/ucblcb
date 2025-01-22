@@ -70,27 +70,33 @@ def check_observation_space(policy, /, obs: Any, *, reset=False) -> None:
         )
 
 
-def randomsubset_uninitialized_decide(
-    policy, n_samples: int, n_arms: int, random: Generator
-) -> Action:
-    """Pick an subset at random from uninitialized policy with pre-validated inputs."""
+def random_subset(
+    random: Generator, /, n_arms: int, budget: int, *, size: int | tuple[int, ...] = ()
+) -> ndarray[int]:
+    """Pick random subset from `n_arm` elements of specifed size `budget`."""
+
+    size = size if isinstance(size, tuple) else (size,)
 
     # produce a random samaple of budget-sized subsets of arms
     # XXX we don't care if we are under budget
-    arms = np.broadcast_to(np.arange(n_arms), (n_samples, n_arms))
+    arms = np.broadcast_to(np.arange(n_arms), (*size, n_arms))
     indices = random.permuted(arms, axis=-1)
 
     # get the binary interaction mask (integers)
     # XXX we don't care if we are under budget
-    actions = np.zeros(arms.shape, int)
-    np.put_along_axis(actions, indices[:, : policy.budget], 1, axis=-1)
+    subsets = np.zeros(arms.shape, int)
+    np.put_along_axis(subsets, indices[..., :budget], 1, axis=-1)
 
-    return actions
+    return subsets
 
 
 class BasePolicy:
     """The base policy interface."""
 
+    # total number of interaction steps over the policy's lifetime
+    n_max_steps: int | None = None
+
+    # maximal number of arms we can interact at each step (others get action `zero`)
     budget: int
 
     # attributes
@@ -100,9 +106,19 @@ class BasePolicy:
     n_pulls_a_: ndarray[int]
     avg_rew_a_: ndarray[float]
 
-    def __init__(self, budget: int, /, *, random: Generator = None) -> None:
+    def __init__(
+        self,
+        n_max_steps: int | None,
+        budget: int,
+        /,
+        *,
+        random: Generator = None,
+    ) -> None:
         assert isinstance(budget, int) and budget >= 0
         self.budget = budget
+
+        assert n_max_steps is None or n_max_steps > 0
+        self.n_max_steps = n_max_steps
 
     def update(
         self,
@@ -224,7 +240,7 @@ class BasePolicy:
 
         # get the number of arms in multi-arm 2d+ data
         n_samples, n_arms, *_ = np.shape(obs)
-        return randomsubset_uninitialized_decide(self, n_samples, n_arms, random)
+        return random_subset(random, n_arms, self.budget, size=n_samples)
 
     def decide_impl(self, random: Generator, /, obs):
         raise NotImplementedError
