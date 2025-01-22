@@ -83,21 +83,22 @@ def randomsubset_uninitialized_decide(
     # get the binary interaction mask (integers)
     # XXX we don't care if we are under budget
     actions = np.zeros(arms.shape, int)
-    np.put_along_axis(actions, indices[:, :policy.budget], 1, axis=-1)
+    np.put_along_axis(actions, indices[:, : policy.budget], 1, axis=-1)
 
     return actions
 
 
 class BasePolicy:
     """The base policy interface."""
+
     budget: int
 
     # attributes
     shape_in_: tuple[int, ...]
     n_arms_in_: int  # the number of arms to pick subsets from
 
-    n_pulls_: ndarray[int]
-    reward_per_pull_: ndarray[float]
+    n_pulls_a_: ndarray[int]
+    avg_rew_a_: ndarray[float]
 
     def __init__(self, budget: int, /, *, random: Generator = None) -> None:
         assert isinstance(budget, int) and budget >= 0
@@ -142,9 +143,9 @@ class BasePolicy:
 
         # make sure the `.n_arms_in_` are initialized: act is `(n_samples, n_arms,)`
         _, n_arms = np.shape(act)
-        is_first_call = check_n_arms(
-            self, n_arms, initialize=False
-        ) or not hasattr(self, "n_arms_in_")
+        is_first_call = check_n_arms(self, n_arms, initialize=False) or not hasattr(
+            self, "n_arms_in_"
+        )
         # XXX we should probably make sure the valeus in `act` are integers between
         #  `0` and `n_actons-1`, where `n_actons` is the size of the action space.
 
@@ -162,7 +163,7 @@ class BasePolicy:
         return self.update_impl(obs, act, rew, new, random=random)
 
     def decide(self, random: Generator, /, obs: Observation) -> Action:
-        """Decide the action to play at the provided observed state.
+        """Decide the action to play to each arm at the provided observed state.
 
         Parameters
         ----------
@@ -192,8 +193,8 @@ class BasePolicy:
     def setup_impl(self, /, obs, act, rew, new, *, random: Generator = None):
         # the base pocy tracks the number of times each arm has been interacted
         #  with and the average per-arm reward it yielded
-        self.n_pulls_ = np.zeros(self.n_arms_in_, int)
-        self.reward_per_pull_ = np.zeros(self.n_arms_in_, float)
+        self.n_pulls_a_ = np.zeros(self.n_arms_in_, int)
+        self.avg_rew_a_ = np.zeros(self.n_arms_in_, float)
 
         return self
 
@@ -202,16 +203,16 @@ class BasePolicy:
         # XXX this does `\mu_{n+m} - \mu_n = \frac{m}{n+m} (\bar{x}_m - \mu_n)`
         #     with per-arm m, n, and \bar{x}_m
         counts_ = np.sum(act, axis=0)  # XXX `act` is `(B, N)`
-        update_ = np.sum(rew, axis=0, where=act > 0) - counts_ * self.reward_per_pull_
+        update_ = np.sum(rew, axis=0, where=act > 0) - counts_ * self.avg_rew_a_
 
         # first, we make sure to keep track of pull counts
-        self.n_pulls_ += counts_
+        self.n_pulls_a_ += counts_
 
         # then, update the average per arm reward estimate
         # XXX if we received no new samples for some `j` then `update_[j] = 0`
         #  and this zero is propagated through `.divide`, which is what we want
-        np.divide(update_, self.n_pulls_, where=self.n_pulls_ > 0, out=update_)
-        self.reward_per_pull_ += update_
+        np.divide(update_, self.n_pulls_a_, where=self.n_pulls_a_ > 0, out=update_)
+        self.avg_rew_a_ += update_
 
         # XXX do we assume partially observed rewards, i.e. only for the arms
         #  for which `act != 0`?
