@@ -6,12 +6,46 @@ from numpy.random import Generator
 from .base import BasePolicy
 
 
+def lcb(N, T=None, *, C: float = 1.0):
+    r"""unsigned LCB term from [1]_ for :math:`N` samples
+
+    .. math::
+
+        \sqrt{\frac{\log (2 + N)}{2 + N}}
+
+    References
+    ----------
+    .. [1] APA Citation Needed
+    """
+
+    Np1 = 1 + N  # XXX why `+1` here and on the line below?
+    return C * np.sqrt(np.log(1 + Np1) / (1 + Np1))
+    # XXX shouldn't we return to `+\infty` if N is zero, i.e. no samples, to indicate
+    #  complete uncertainty, maximal absence of confidence? same with ucb
+
+
+def ucb(N, T, *, C: float = 1.714):
+    r"""UCB double-log term from [1]_ for :math:`N` samples out of :math:`T`
+
+    .. math::
+
+        \sqrt{\frac{\log \log (2 + N) + 2 \log 10 T }{1 + N}}
+
+    References
+    ----------
+    .. [1] APA Citation Needed
+    """
+
+    Np1 = 1 + N  # XXX why `+1` here?
+    return C * np.sqrt((np.log(np.log(Np1 + 1)) + 2 * np.log(T * 10)) / Np1)
+
+
 class UcbLcb(BasePolicy):
     """UCBLCB policy for binary multi-arm mdps."""
 
-    gamma: float
-    n_states: int = 2  # binary
     n_actions: int = 2  # binary
+    n_states: int
+    threshold: float
 
     # attributes
     # `n_{sa}` (pseudo-)count of pulls of arm `a` at state `s`
@@ -28,19 +62,21 @@ class UcbLcb(BasePolicy):
 
     def __init__(
         self,
+        n_max_steps: int | None,
         budget: int,
         /,
         n_states: int,
+        threshold: float,
         *,
-        gamma: float,
         random: Generator = None,
     ) -> None:
-        super().__init__(budget)
+        super().__init__(n_max_steps, budget)
+
         assert n_states > 0
         self.n_states = n_states
 
-        assert isinstance(gamma, float) and 0 <= gamma <= 1
-        self.gamma = gamma
+        assert isinstance(threshold, float) and 0 <= threshold <= 1
+        self.threshold = threshold
 
     def setup_impl(self, /, obs, act, rew, new, *, random: Generator = None):
         """Initialize the ucb-lcb state from the transition."""
@@ -83,13 +119,35 @@ class UcbLcb(BasePolicy):
         np.divide(upd_sa, self.n_pulls_sa_, where=self.n_pulls_sa_ > 0, out=upd_sa)
         self.avg_rew_sa_ += upd_sa
 
-        # deal with lcb/ucb
-
         return self
+
+    # uninitialized_decide_impl defaults to `randomsubset(.budget, obs.shape[1])`
 
     def decide_impl(self, random: Generator, /, obs):
         """Decide the action to play to each arm at the provided observed state."""
+        # `obs` is (batch, n_arms) and, if initialized, `n_arms == .n_arms_in_`
+        # XXX usually `batch == 1`, i.e. single-element batch of observations.
+        idx = np.broadcast_to(np.arange(self.n_arms_in_)[np.newaxis], obs.shape)
 
-        raise NotImplementedError
+        # get `(b, a) -> ucb_[obs[b, a], a]` and lcb -- the upper/lower confindence
+        #  bounds of each arm at its observed state in the batch
+        # XXX each arms gets at most one pull per step so
+        #     `np.sum(self.n_pulls_sa_) <= self.n_max_steps`
+        lcb_ = self.avg_rew_sa_ - lcb(self.n_pulls_sa_, self.n_max_steps)
+        ucb_ = self.avg_rew_sa_ + ucb(self.n_pulls_sa_, self.n_max_steps)
+        lcb_ba, ucb_ba = lcb_[obs, idx], ucb_[obs, idx]
 
-    # uninitialized_decide_impl defaults to `randomsubset(.budget)`
+        # lexsort: first order the arms (in each batch item) by increasing ucb,
+        #  then stably sort by thresholded lcb in ascending order. Thresholding
+        #  makes the sorting key insensitive to values lower than `\gamma`, hence
+        #  preserving the order-by-ucb. which is what we actually need in the algo!
+        # XXX in `.lexsort` the last key in the tuple is primary
+        order = np.lexsort((ucb_ba, np.clip(lcb_ba, min=self.threshold)), axis=-1)
+
+        # b -> {a: lcb_[obs[b, a], a] < \tau}
+        # get the binary interaction mask (integers)
+        # XXX we don't care if we are under budget
+        subsets = np.zeros(order.shape, int)
+        np.put_along_axis(subsets, order[..., -self.budget :], 1, axis=-1)
+
+        return subsets
