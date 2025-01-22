@@ -52,9 +52,10 @@ def check_observation_space(policy, /, obs: Any, *, reset=False) -> None:
     """Set the `shape_in_` attribute, or check the data against it."""
 
     # get the number of features in 2d+ data
-    _, _, *shape = np.shape(obs)
+    _, _, *features = np.shape(obs)
 
     # shortcut if we are resetting
+    shape = tuple(features)
     if reset:
         # setattr(policy, "shape_in_", shape)
         policy.shape_in_ = shape
@@ -144,6 +145,8 @@ class BasePolicy:
         is_first_call = check_n_arms(
             self, n_arms, initialize=False
         ) or not hasattr(self, "n_arms_in_")
+        # XXX we should probably make sure the valeus in `act` are integers between
+        #  `0` and `n_actons-1`, where `n_actons` is the size of the action space.
 
         # see if the observation and rewards are consistent with what used in
         #  the previous call
@@ -176,12 +179,12 @@ class BasePolicy:
         check_observation_space(self, obs)
 
         # get the number of arms in multi-arm 2d+ data
-        n_samples, n_arms, *_ = np.shape(obs)
+        _, n_arms, *_ = np.shape(obs)
 
         # until we have been updated, we resort to random assignments
         never_updated = check_n_arms(self, n_arms, initialize=False)
         if never_updated:
-            return randomsubset_uninitialized_decide(self, n_samples, n_arms, random)
+            return self.uninitialized_decide_impl(random, obs)
 
         # call the `decide` implementation
         return self.decide_impl(random, obs)
@@ -214,6 +217,14 @@ class BasePolicy:
         #  for which `act != 0`?
         return self
 
+    def uninitialized_decide_impl(self, random: Generator, /, obs):
+        """Draw a subset of processes at random to play."""
+        # default policy to restort to until the first `.update`.
+
+        # get the number of arms in multi-arm 2d+ data
+        n_samples, n_arms, *_ = np.shape(obs)
+        return randomsubset_uninitialized_decide(self, n_samples, n_arms, random)
+
     def decide_impl(self, random: Generator, /, obs):
         raise NotImplementedError
 
@@ -221,11 +232,4 @@ class BasePolicy:
 class RandomSubsetPolicy(BasePolicy):
     """A random subset policy for multi-arm subset action spaces."""
 
-    def decide_impl(self, random: Generator, /, obs: Observation) -> Action:
-        """Draw a subset of processes at random to play."""
-        assert isinstance(random, Generator)
-
-        # get the number of arms in multi-arm 2d+ data
-        return randomsubset_uninitialized_decide(
-            self, len(obs), self.n_arms_in_, random
-        )
+    decide_impl = BasePolicy.uninitialized_decide_impl
