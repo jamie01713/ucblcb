@@ -88,8 +88,7 @@ class MDP(Env):
     def sample(
         cls, random: Generator, /, kernels, rewards, *, n_processes: int = None
     ) -> Iterator["MDP"]:
-        """Create instances of batched MDP by sampling from provided kernel-reward pairs.
-        """
+        """Create instances of batched MDP by sampling from provided kernel-reward pairs."""
 
         random = default_rng(random)  # the prng is consumed!
 

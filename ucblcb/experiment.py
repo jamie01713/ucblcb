@@ -10,7 +10,7 @@ from numpy.random import default_rng, Generator, SeedSequence
 from typing import Iterator
 from collections.abc import Callable
 
-from .envs import Env, Observation, Action
+from .envs.base import Env, Observation, Action
 from .policies.base import BasePolicy
 
 
