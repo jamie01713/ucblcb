@@ -11,18 +11,15 @@ class BasePolicy:
 
     n_actions: int
 
-    def __init__(self, n_actions: int, /) -> None:
-        self.n_actions = n_actions
-
-    def reset(self, random: Generator = None, /):
-        """Re-initialize the policy's internal state.
+    def __init__(self, n_actions: int, /, *, random: Generator = None) -> None:
+        """Initialize its state from `random`.
 
         Parameters
         ----------
         random: Generator, optional
-            Consumable PRNG instance.
+            Consumable PRNG instance used for initialization.
         """
-        pass
+        self.n_actions = n_actions
 
     def update(
         self,
@@ -79,7 +76,7 @@ class RandomSubsetPolicy(BasePolicy):
     budget: int
 
     def __init__(
-        self, n_actions: int, /, budget: int
+        self, n_actions: int, /, budget: int, *, random: None = None
     ) -> None:
         assert n_actions == 2
         self.n_actions = n_actions
