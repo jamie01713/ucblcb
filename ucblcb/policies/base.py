@@ -1,3 +1,5 @@
+import numpy as np
+
 from numpy.random import default_rng, Generator
 from typing_extensions import Self
 
@@ -55,5 +57,35 @@ class BasePolicy:
         obs: pytree, with leaves of shape `()`
             Current observed state `x_t`.
         """
+        assert isinstance(random, Generator)
 
-        return default_rng(random).choice(self.n_actions, size=len(obs))
+        return random.choice(self.n_actions, size=len(obs))
+
+
+class RandomSubsetPolicy(BasePolicy):
+    """A random subset policy for binary action spaces."""
+
+    n_actions: int
+    budget: int
+
+    def __init__(
+        self, n_actions: int, /, budget: int
+    ) -> None:
+        assert n_actions == 2
+        self.n_actions = n_actions
+
+        assert budget >= 0
+        self.budget = budget
+
+    def decide(self, random: Generator, /, obs: Observation) -> Action:
+        """Draw a subset of processes at random to play."""
+        assert isinstance(random, Generator)
+
+        # we don't care if we are under budget
+        indices = random.permutation(len(obs))[:self.budget]
+
+        # get the binary interaction mask (integers)
+        actions = np.zeros(len(obs), int)
+        np.put_along_axis(actions, indices, 1, axis=-1)
+
+        return actions
