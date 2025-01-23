@@ -108,9 +108,7 @@ def run(
         policy_gains_unfair_advantage = sneak_peek(pol)
 
         # reuse the same seed sequence deterministic chaos in env
-        episodes = MDP.sample(
-            sq_env_init[0], kernels, rewards, n_processes=n_processes
-        )
+        episodes = MDP.sample(sq_env_init[0], kernels, rewards, n_processes=n_processes)
 
         # multi-episode policy: fully reset envs between episodes, but not the policy
         #  unless it takes an unfair sneak peek through the env
@@ -125,9 +123,7 @@ def run(
             walltimes.append(monotonic())
 
         # track whatever the episode runner yielded and per-episode time measurements
-        history.append(
-            (np.stack(episode_rewards), np.ediff1d(walltimes))
-        )
+        history.append((np.stack(episode_rewards), np.ediff1d(walltimes)))
 
     # unpack, stack, and then return a dictionary
     episode_rewards, walltimes = map(np.stack, zip(*history))
@@ -185,4 +181,4 @@ def make_name(
             f"E{n_experiments}",
         ]
     )
-    return f"{xp}__{suffix}__{policy_name}__{entropy}"
+    return f"{xp}__{suffix}__{policy_name}__{entropy:32X}"

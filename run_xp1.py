@@ -26,23 +26,32 @@ config = dict(
     n_steps_per_episode=500,
     # policy params
     cls="ucblcb.policies.ucblcb.UcbLcb",
-    params='{"threshold": 0.65}'
+    params='{"threshold": 0.65}',
 )
 
 # Reinforcement learning augmented asymptotically optimal index policy for
 #  finite-horizon restless bandits
 random_ = default_rng(None)
 
-logits = random_.normal(
-    size=(
-        config["n_population"], config["n_states"], config["n_actions"], config["n_states"],
+# get the pool of markov processes
+kernels = softmax(
+    random_.normal(
+        size=(
+            config["n_population"],
+            config["n_states"],
+            config["n_actions"],
+            config["n_states"],
+        )
     )
+    / config["temperature"],
+    axis=-1,
 )
-kernels = softmax(logits / config["temperature"], axis=-1)
-rewards = random_.normal(size=(1, 1, 1, config["n_states"]))
+rewards = random_.normal(size=(1, 1, 1, kernels.shape[3]))
 
 # assemble a policy builder
 Policy = partial(from_qualname(config["cls"]), **json.loads(config["params"]))
+
+# run the experiment
 results = xp1.run(
     entropy,
     Policy,
@@ -55,29 +64,34 @@ results = xp1.run(
     n_steps_per_episode=config["n_steps_per_episode"],
 )
 
+# fetch the result
 traces = results["episode_rewards"]
 full_rewards = np.reshape(traces, (len(traces), -1))
 averages = full_rewards.cumsum(-1) / (1 + np.arange(full_rewards.shape[1]))
 
+# measure the cumulative reward due to policy randomness (all envs are the same)
 m, s = averages.mean(0), averages.std(0)
 
-
-tag = xp1.make_name(**results)
-
+# make pretty picture
 fig, ax = plt.subplots(1, 1, dpi=120, figsize=(5, 3))
 ax.set_title("Average cumulative multi-episodic reward")
-with mpl.rc_context({
-    "legend.fontsize": "x-small",
-}):
+with mpl.rc_context(
+    {
+        "legend.fontsize": "x-small",
+    }
+):
     xs = 1 + np.arange(len(m))
-    line, = ax.plot(xs, m, label=results["policy_name"], color="C0")
+    (line,) = ax.plot(xs, m, label=results["policy_name"], color="C0")
     ax.fill_between(
         xs,
-        m - 1.96*s,
-        m + 1.96*s,
+        m - 1.96 * s,
+        m + 1.96 * s,
         zorder=-10,
         alpha=0.15,
         color=line.get_color(),
     )
     ax.legend(loc="lower right")
+
+# save the pdf
+tag = xp1.make_name(**results)
 fig.savefig(f"fig1__{tag}.pdf")
