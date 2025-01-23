@@ -120,7 +120,7 @@ def main(
         ax.legend(loc="lower right")
 
     # save the pdf
-    fig.savefig(f"fig1__{filename_tag}.pdf")
+    fig.savefig(os.path.join(path, f"fig1__{filename_tag}.pdf"))
 
 
 if __name__ == "__main__":
