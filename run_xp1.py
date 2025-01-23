@@ -1,7 +1,12 @@
 """
-python run_xp1.py ucblcb.policies.UcbLcb         \
-    --params='{"threshold": 0.65}'               \
-    --entropy=B76A074C23C703767710E1D756F73AE9   \
+python run_xp1.py ucblcb.policies.RandomSubsetPolicy   \
+    --params='{}'                                      \
+    --entropy=B76A074C23C703767710E1D756F73AE9         \
+    --path='./results'
+
+python run_xp1.py ucblcb.policies.UcbLcb               \
+    --params='{"threshold": 0.65}'                     \
+    --entropy=B76A074C23C703767710E1D756F73AE9         \
     --path='./results'
 """
 
@@ -12,12 +17,13 @@ import json
 import numpy as np
 
 from scipy.special import softmax
-from numpy.random import default_rng
+from numpy.random import default_rng, SeedSequence
 from functools import partial
 
 import matplotlib as mpl
 from matplotlib import pyplot as plt
 
+from ucblcb.policies.base import BasePolicy
 from ucblcb.experiment import experiment1 as xp1
 from ucblcb.experiment.utils import from_qualname
 
@@ -28,11 +34,11 @@ def main(
     # the entropy for seeding the environments
     entropy: int = 243799254704924441050048792905230269161,  # a value from numpy docs
     # policy params
-    cls: str = "ucblcb.policies.ucblcb.UcbLcb",
-    params: str = '{"threshold": 0.65}',
+    cls: str | type = "ucblcb.policies.RandomSubsetPolicy",
+    params: dict = None,
     # mdp specs
-    n_states: int = 5,
-    n_actions: int = 3,
+    n_states: int = 4,
+    n_actions: int = 2,
     temperature: float = 0.5,
     # the total size of the mdp pool
     n_population: int = 1000,
@@ -47,13 +53,19 @@ def main(
     # the number of instraction steps in each episode
     n_steps_per_episode: int = 500,
 ):
+    main = SeedSequence(entropy)
+
+    # ensure the supplied policy is correct
+    cls = from_qualname(cls)
+    assert issubclass(cls, BasePolicy)
+
     # ensure a path for the results
     path = os.path.abspath(path)
     os.makedirs(path, exist_ok=True)
 
     # Reinforcement learning augmented asymptotically optimal index policy for
     #  finite-horizon restless bandits
-    random_ = default_rng(None)
+    random_ = default_rng(main)
 
     # get the pool of markov processes
     kernels = softmax(
@@ -71,11 +83,11 @@ def main(
     rewards = random_.normal(size=(1, 1, 1, kernels.shape[3]))
 
     # assemble a policy builder
-    Policy = partial(from_qualname(cls), **params)
+    Policy = partial(cls, **(params if isinstance(params, dict) else {}))
 
     # run the experiment
     results = xp1.run(
-        entropy,
+        *main.spawn(1),
         Policy,
         kernels,
         rewards,
@@ -124,18 +136,18 @@ def main(
 
 
 if __name__ == "__main__":
+    # why not use pydantic and manage experiments via json?
     import argparse
 
     # we allow some limited config through the command line args
     parser = argparse.ArgumentParser(description="Run experiment one.", add_help=True)
     parser.register("type", "hexadecimal", lambda x: int(x, 16) if x else None)
+    parser.register("type", "qualname", from_qualname)
     parser.register("type", "json", json.loads)
 
     # the policy and its hyperparameters
-    parser.add_argument("cls", type=str, default="ucblcb.policies.ucblcb.UcbLcb")
-    parser.add_argument(
-        "--params", required=False, type="json", default='{"threshold": 0.2}'
-    )
+    parser.add_argument("cls", type="qualname", default="ucblcb.policies.ucblcb.UcbLcb")
+    parser.add_argument("--params", required=False, type="json", default='{}')
     parser.add_argument("--entropy", required=False, type="hexadecimal", default=None)
 
     parser.add_argument("--n_population", type=int, default=1000)
