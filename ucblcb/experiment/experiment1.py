@@ -50,7 +50,7 @@ def pseudocode() -> None:
             # XXX unlike the original impl., we keep `r[0]` undefined!
             while not done:
                 # pol: (h_k, x_t) -->> a_t
-                a[t] = pol.decide(h[t], x[t])
+                a[t] = pol.decide(h[k], x[t])
 
                 # env: (x_t, a_t) -->> (x_{t+1}, r_{t+1})
                 x[t + 1], r[t + 1], done = env.step(x[t], a[t])
