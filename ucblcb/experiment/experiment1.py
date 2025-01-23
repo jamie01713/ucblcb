@@ -77,7 +77,7 @@ def run(
     n_experiments: int,
     n_episodes_per_experiment: int,
     n_steps_per_episode: int,
-) -> None:
+) -> tuple[BasePolicy, dict]:
     n_population, n_states, n_actions, _ = kernels.shape
     assert 0 < n_budget <= n_processes
 
@@ -127,7 +127,7 @@ def run(
 
     # unpack, stack, and then return a dictionary
     episode_rewards, walltimes = map(np.stack, zip(*history))
-    return dict(
+    return pol, dict(
         # save the name of the policy played during the last replication
         policy_name=repr(pol),
         # the timestamp and git
@@ -166,6 +166,7 @@ def make_name(
     n_experiments: int,
     n_episodes_per_experiment: int,
     n_steps_per_episode: int,
+    __dttm__: str,
     **ignore,
 ) -> str:
     """Make a name for this experiment."""
@@ -181,4 +182,4 @@ def make_name(
             f"E{n_experiments}",
         ]
     )
-    return f"{xp}__{suffix}__{policy_name}__{entropy:32X}"
+    return f"{xp}__{suffix}__{policy_name}__{__dttm__}__{entropy:32X}"
