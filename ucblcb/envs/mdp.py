@@ -15,18 +15,18 @@ from .base import Env
 
 
 class MDP(Env):
-    """A batched MDP."""
+    """A vectorized finite-state markov decision process environment."""
 
-    # the random state (consumed!)
+    # the random state CONSUMED by the environment!
     random_: Generator
 
-    # (N, S, A, X) markov transition kernels
+    # (N, S, A, X) Markov transition probability `p_n(S'=x | S=s, A=a)`
     kernels: ndarray[float]
 
-    # (N, S, A, X) MDP's reward (see `.validate`)
+    # (N, S, A, X) MDP's reward function `r_n(s, a, x)` (see `.validate`)
     rewards: ndarray[float]
 
-    # (N,) the current hidden state of each pop member's mdp instance
+    # (N,) the joint state is made up of state of each mdp instance in the environment
     state_: State
 
     def __init__(self, random: Generator, /, kernels, rewards) -> None:
@@ -39,11 +39,11 @@ class MDP(Env):
         self.state_ = self.random_.choice(n_states, size=n_population, p=None)
 
         # the observation is the state (complete information MDP)
-        # XXX `random_` is updated inplace!
+        # XXX `random_` is consumed and updated inplace!
         return self.state_.copy(), {}
 
     def step(self, /, actions: Action) -> tuple[Observation, Reward, bool, dict]:
-        # get the member to mdp designation
+        # get the member-to-mdp designation
         index = np.arange(len(self.kernels))
 
         # draw the next state and take the reward
@@ -66,13 +66,27 @@ class MDP(Env):
 
     @staticmethod
     def validate(kernels: ndarray, rewards: ndarray) -> tuple[ndarray, ndarray]:
-        # make sure the kernels and rewards broadcast and have shape (N, S, A, X)
-        # XXX rewards's shape uniquely determines the expected reward function
-        # * `(S, A, X)` -- `r(s, a, x)`
-        # * `(1, A, 1)` -- `r(a)`
-        # * `(1, 1, X)` -- `r(x)`
-        # basically, unit dims correspond to "independence" from the respective
-        #  piece of the `(state, action, next_state)` transition.
+        r"""Make sure the kernels and rewards broadcast and have shape (N, S, A, X).
+
+        Notes
+        -----
+        Rewards's shape uniquely determines the reward function:
+
+        * `(S, A, X)` is :math:`r(s, a, x)`, i.e. reward for entering `x` from
+          `s` by doing `a`. Avoids baking :math:`p(x | s, a)` into the expected
+          reward :math:`R(s, a) = E_{p(x | s, a)} r(s, a, x)` prematurely.
+
+        * `(1, A, 1)` is `r(a)` -- depends on action only! (i.e. movement
+          cost in shortest path control problems)
+
+        * `(1, 1, X)` is `r(x)` -- reward for entering or being at `x`
+        * `(S, 1, 1)` is `r(s)` -- reward for leaving `s`
+
+        Basically, unit dims correspond to "independence" from the respective piece
+        of the `(state, action, next_state)` transition.
+        """
+
+        # broadcast
         shape = np.broadcast_shapes(kernels.shape, (1, 1, 1, 1))
         kers, rews = np.broadcast_arrays(np.broadcast_to(kernels, shape), rewards)
 
@@ -89,6 +103,7 @@ class MDP(Env):
         cls, random: Generator, /, kernels, rewards, *, n_processes: int = None
     ) -> Iterator["MDP"]:
         """Create instances of batched MDP by sampling from provided kernel-reward pairs."""
+
         random = default_rng(random)  # the PRNG `random` is consumed!
 
         # check kernel-reward pair consistency
