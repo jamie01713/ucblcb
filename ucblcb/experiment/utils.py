@@ -156,7 +156,8 @@ def sneak_peek(
 
     @wraps(peeker)
     def peeker_with_alert(env: Env) -> None:
-        warnings.warning(f"policy {pol}({id(pol)}) took a peek into the black box")
+        message = f"policy {pol}({id(pol)}) took a peek into the black box"
+        warnings.warn(message, RuntimeWarning)
         return peeker(env)
 
     return peeker_with_alert
