@@ -10,7 +10,7 @@ from ..envs.base import Observation, Action, Reward
 
 
 def check_consistent_shapes(*arys, axes: int | tuple[int, ...] = 2):
-    """Make sure the specified axes conincide."""
+    """Make sure the specified axes coincide."""
 
     axes = (axes,) if isinstance(axes, int) else axes
 
@@ -73,11 +73,11 @@ def check_observation_space(policy, /, obs: Any, *, reset=False) -> None:
 def random_subset(
     random: Generator, /, n_arms: int, budget: int, *, size: int | tuple[int, ...] = ()
 ) -> ndarray[int]:
-    """Pick random subset from `n_arm` elements of specifed size `budget`."""
+    """Pick random subset from `n_arm` elements of specified size `budget`."""
 
     size = size if isinstance(size, tuple) else (size,)
 
-    # produce a random samaple of budget-sized subsets of arms
+    # produce a random smaple of budget-sized subsets of arms
     # XXX we don't care if we are under budget
     arms = np.broadcast_to(np.arange(n_arms), (*size, n_arms))
     indices = random.permuted(arms, axis=-1)
@@ -236,7 +236,7 @@ class BasePolicy:
 
     def uninitialized_decide_impl(self, random: Generator, /, obs):
         """Draw a subset of processes at random to play."""
-        # default policy to restort to until the first `.update`.
+        # default policy to resort to until the first `.update`.
 
         # get the number of arms in multi-arm 2d+ data
         n_samples, n_arms, *_ = np.shape(obs)
@@ -247,6 +247,6 @@ class BasePolicy:
 
 
 class RandomSubsetPolicy(BasePolicy):
-    """A random subset policy for multi-arm subset action spaces."""
+    """A random subset policy for multi-arm binary action spaces."""
 
     decide_impl = BasePolicy.uninitialized_decide_impl

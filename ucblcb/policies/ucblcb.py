@@ -41,7 +41,7 @@ def ucb(N, T, *, C: float = 1.714):
 
 
 class UcbLcb(BasePolicy):
-    """UCBLCB policy for binary multi-arm mdps."""
+    """UCBLCB policy for binary joint-control multi-arm mdps."""
 
     n_actions: int = 2  # binary
     n_states: int
@@ -51,9 +51,12 @@ class UcbLcb(BasePolicy):
     # `n_{sa}` (pseudo-)count of pulls of arm `a` at state `s`
     n_pulls_sa_: ndarray[int]  # (S, N)
 
-    # `q_{sa}` -- estimated rew for pulling arm `a` at state `s`  (not qfn, since
-    #  it has no lookahead: `q_{sa} ~ E_{xr|sa} r_{sax} + \gamma \hat{v}_x` with
-    #  `\hat{v}_x = \max_k q_{xk}`)
+    # `q_{sa}` -- estimated immediate reward for pulling arm `a` at state `s` (not
+    #  quite q-fun, since assumes one-shot interaction and no policy in the future
+    #  trajectory). Also, it has no look-ahead:
+    #     \hat{q}_{sa} \approx E_{xr|sa} r_{sax} + \gamma \hat{v}_x \,,
+    #  with
+    #     \hat{v}_x = q_{xk_x}\,, k_x \in \arg\max_k q_{xk} \,.
     avg_rew_sa_: ndarray[float]  # (S, N)
 
     #  its lower- and upper- confidence bounds
@@ -129,7 +132,7 @@ class UcbLcb(BasePolicy):
         # XXX usually `batch == 1`, i.e. single-element batch of observations.
         idx = np.broadcast_to(np.arange(self.n_arms_in_)[np.newaxis], obs.shape)
 
-        # get `(b, a) -> ucb_[obs[b, a], a]` and lcb -- the upper/lower confindence
+        # get `(b, a) -> ucb_[obs[b, a], a]` and lcb -- the upper/lower confidence
         #  bounds of each arm at its observed state in the batch
         # XXX each arms gets at most one pull per step so
         #     `np.sum(self.n_pulls_sa_) <= self.n_max_steps`

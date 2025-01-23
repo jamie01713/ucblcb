@@ -29,18 +29,20 @@ def rollout(
     # reset the env and get its initial observation
     obs_, _ = env.reset()  # x_0
     while (n_steps is None or step < n_steps) and not done:
-        # time tick `t-1 -> t` (`x` becomes `s`)
+        # local time tick `t-1 -> t` (`x` becomes `s`)
         obs, rew = obs_, rew_  # noqa: F841
-        # XXX `rew`, reward due to `t-1 -> t` transition, is not used!
         # XXX `obs`, `act`, `rew`, `obs_`,    and `rew_` are
         #     `x_t`, `a_t`, `r_t`, `x_{t+1}`, and `r_{t+1}`, respectively.
 
         # `act` is `a_t` array of int of shape (P,)
         # x_t --policy-->> a_t
         # XXX `policy`, like env, can be stateful
-        act = policy(np.expand_dims(obs, 0))[0]
+        act = policy(np.expand_dims(obs, 0))[0]  # XXX single-element batch!
 
         # (x_t, a_t) --env-->> (r_{t+1}, x_{t+1})
+        # XXX reward due to `t-1 -> t` transition is not used (`rew`), because
+        #  at state `x_t` we took action `a_t` and got `r_{t+1}` as feedback
+        #  (env's local step ticked from `t` to `t+1`)!
         obs_, rew_, done, _ = env.step(act)
 
         # return the x_t, a_t, r_{t+1}, x_{t+1} transition
