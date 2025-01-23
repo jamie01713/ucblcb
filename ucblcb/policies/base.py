@@ -250,3 +250,6 @@ class RandomSubsetPolicy(BasePolicy):
     """A random subset policy for multi-arm binary action spaces."""
 
     decide_impl = BasePolicy.uninitialized_decide_impl
+
+    def __repr__(self) -> str:
+        return type(self).__name__ + "()"

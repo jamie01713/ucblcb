@@ -63,6 +63,9 @@ class UcbLcb(BasePolicy):
     q_lcb_: ndarray[float]  # (S, N)
     q_ucb_: ndarray[float]  # (S, N)
 
+    def __repr__(self) -> str:
+        return type(self).__name__ + f"(threshold={self.threshold})"
+
     def __init__(
         self,
         n_max_steps: int | None,
