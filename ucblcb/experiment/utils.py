@@ -1,7 +1,10 @@
 """Rollout loop, episodic update loop, and experimnet seeding.
 """
 
+import re
 import warnings
+
+from importlib import import_module
 
 import numpy as np
 from functools import partial
@@ -180,3 +183,14 @@ def snapshot_git(path=None, *, diff: bool = True) -> dict:
         head, diff = "", ""
 
     return {"head": head, "diff": diff}
+
+
+def from_qualname(spec: str | type) -> type:
+    """Parse the specified qualname, import it and return the type."""
+    # remove the text-wrapper resulting from `str(type(obj))`
+    match = re.fullmatch(r"^<(?:class)\s+'(.*)'>$", spec)
+    qualname = spec if match is None else match.group(1)
+
+    # import from built-ins if no module was detected
+    module, dot, name = qualname.rpartition(".")
+    return getattr(import_module(module if dot else "builtins"), name)
