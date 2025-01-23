@@ -187,6 +187,9 @@ def snapshot_git(path=None, *, diff: bool = True) -> dict:
 
 def from_qualname(spec: str | type) -> type:
     """Parse the specified qualname, import it and return the type."""
+    if isinstance(spec, type):
+        return spec
+
     # remove the text-wrapper resulting from `str(type(obj))`
     match = re.fullmatch(r"^<(?:class)\s+'(.*)'>$", spec)
     qualname = spec if match is None else match.group(1)

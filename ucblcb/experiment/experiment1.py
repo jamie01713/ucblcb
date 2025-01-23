@@ -88,7 +88,7 @@ def run(
 
     # prepare the seed sequence for the experiment: the same seed for episodic env
     #   generator, but different for the policy's interactions within an episodes
-    main = SeedSequence(entropy)
+    main = entropy if isinstance(entropy, SeedSequence) else SeedSequence(entropy)
     sq_experiment = sq_spawn(
         main,
         # policy init
