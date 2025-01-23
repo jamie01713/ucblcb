@@ -1,11 +1,15 @@
 """Rollout loop, episodic update loop, and experimnet seeding.
 """
 
+import warnings
+
 import numpy as np
 from functools import partial
 
 from numpy import ndarray
 from numpy.random import default_rng, Generator, SeedSequence
+
+from functools import wraps
 
 from typing import Iterator
 from collections.abc import Callable
@@ -124,3 +128,32 @@ def sq_spawn(
 
     # broadcast and stack them over the specified dim
     return np.stack(np.broadcast_arrays(*arys), axis)
+
+
+def sneak_peek(
+    pol: BasePolicy, /, method: str = "take_a_gander", *, honest: bool = True
+) -> Callable[[Env], None]:
+    """Brake open the black box and let the policy rummage in it for unfair advantage.
+
+    Notes
+    -----
+    The title is self-explanatory.
+
+    Any policy that implements the method and/or makes use of it on an environment
+    that it is played in should be ashamed of itself, condemned by its peers, and
+    shunned by everybody.
+    """
+
+    peeker = getattr(pol, method, None)
+    if not callable(peeker):
+        return lambda _: None
+
+    if not honest:
+        return peeker
+
+    @wraps(peeker)
+    def peeker_with_alert(env: Env) -> None:
+        warnings.warning(f"policy {pol}({id(pol)}) took a peek into the black box")
+        return peeker(env)
+
+    return peeker_with_alert

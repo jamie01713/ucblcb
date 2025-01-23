@@ -81,6 +81,21 @@ class UcbLcb(BasePolicy):
         assert isinstance(threshold, float) and 0 <= threshold <= 1
         self.threshold = threshold
 
+    def sneak_peek(self, env, /) -> None:
+        """Brake open the black box and rummage in it for unfair advantage.
+
+        Notes
+        -----
+        The title is self-explanatory.
+
+        Any policy that makes use of this method on an environment that it is
+        played in should be ashamed of itself, condemned by its peers, and
+        shunned by everybody.
+        """
+        """Give the policy an unfair advantage by allowing it access to the env's internals.
+        """
+        pass
+
     def setup_impl(self, /, obs, act, rew, new, *, random: Generator = None):
         """Initialize the ucb-lcb state from the transition."""
         super().setup_impl(obs, act, rew, new, random=random)
