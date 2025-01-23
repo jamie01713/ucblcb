@@ -99,6 +99,9 @@ class BasePolicy:
     # maximal number of arms we can interact at each step (others get action `zero`)
     budget: int
 
+    # the size of the discrete state space
+    n_states: int
+
     # attributes
     shape_in_: tuple[int, ...]
     n_arms_in_: int  # the number of arms to pick subsets from
@@ -110,6 +113,7 @@ class BasePolicy:
         self,
         n_max_steps: int | None,
         budget: int,
+        n_states: int,
         /,
         *,
         random: Generator = None,
@@ -119,6 +123,9 @@ class BasePolicy:
 
         assert n_max_steps is None or n_max_steps > 0
         self.n_max_steps = n_max_steps
+
+        assert n_states > 0
+        self.n_states = n_states
 
     def update(
         self,

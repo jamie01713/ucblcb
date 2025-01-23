@@ -44,7 +44,6 @@ class UcbLcb(BasePolicy):
     """UCBLCB policy for binary joint-control multi-arm mdps."""
 
     n_actions: int = 2  # binary
-    n_states: int
     threshold: float
 
     # attributes
@@ -70,16 +69,13 @@ class UcbLcb(BasePolicy):
         self,
         n_max_steps: int | None,
         budget: int,
-        /,
         n_states: int,
+        /,
         threshold: float,
         *,
         random: Generator = None,
     ) -> None:
-        super().__init__(n_max_steps, budget)
-
-        assert n_states > 0
-        self.n_states = n_states
+        super().__init__(n_max_steps, budget, n_states)
 
         assert isinstance(threshold, float) and 0 <= threshold <= 1
         self.threshold = threshold
