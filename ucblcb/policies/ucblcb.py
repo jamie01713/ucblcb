@@ -19,6 +19,7 @@ def lcb(N, T=None, *, C: float = 1.0):
     """
 
     Np1 = 1 + N  # XXX why `+1` here and on the line below?
+    # XXX the `\log` in the numerator is novelty!
     return C * np.sqrt(np.log(1 + Np1) / (1 + Np1))
     # XXX shouldn't we return to `+\infty` if N is zero, i.e. no samples, to indicate
     #  complete uncertainty, maximal absence of confidence? same with ucb
@@ -33,7 +34,9 @@ def ucb(N, T, *, C: float = 1.714):
 
     References
     ----------
-    .. [1] APA Citation Needed
+    .. [1] Howard, S. R., Ramdas, A., McAuliffe, J., & Sekhon, J. (2021).
+       "Time-uniform, nonparametric, nonasymptotic confidence sequences."
+       Ann. Statist. 49(2): 1055-1080 (April 2021). https://doi.org/10.1214/20-AOS1991
     """
 
     Np1 = 1 + N  # XXX why `+1` here?
