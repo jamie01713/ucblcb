@@ -1,4 +1,6 @@
 import tqdm
+from time import monotonic, strftime
+
 import numpy as np
 
 from functools import partial
@@ -10,7 +12,7 @@ from collections.abc import Callable
 from ..envs import MDP
 from ..policies.base import BasePolicy
 from ..envs.base import Env
-from .utils import sq_spawn, sneak_peek, episode as play
+from .utils import sq_spawn, sneak_peek, snapshot_git, episode as play
 
 
 def pseudocode() -> None:
@@ -45,6 +47,7 @@ def pseudocode() -> None:
             # per-episode loop
             x, r, a, t = [...], [...], [...], 0
             x[0], done = env.reset(), False
+            # XXX unlike the original impl., we keep `r[0]` undefined!
             while not done:
                 # pol: (h_k, x_t) -->> a_t
                 a[t] = pol.decide(h[t], x[t])
@@ -85,8 +88,9 @@ def run(
 
     # prepare the seed sequence for the experiment: the same seed for episodic env
     #   generator, but different for the policy's interactions within an episodes
+    main = SeedSequence(entropy)
     sq_experiment = sq_spawn(
-        SeedSequence(entropy),
+        main,
         # policy init
         (n_experiments, 1),
         # environment generator init
@@ -97,7 +101,7 @@ def run(
     )
 
     # per experiment loop
-    traces = []
+    history = []
     for sq_pol_init, sq_env_init, sq_episodes in tqdm.tqdm(sq_experiment, ncols=60):
         # create a new policy
         pol = Creator(random=sq_pol_init[0])
@@ -112,14 +116,40 @@ def run(
         #  unless it takes an unfair sneak peek through the env
         # XXX We draw a new env (at random the the pool) at the start of each episode,
         #  but the policy is not reset. why? who knows?
-        trace_per_experiment = []
+        episode_rewards, walltimes = [], [monotonic()]
         for env, seed_seq in zip(episodes, sq_episodes):
             policy_gains_unfair_advantage(env)
 
             # the trace of rewards gained during the episode
-            trace = play(seed_seq, env, pol, n_steps_per_episode)
-            trace_per_experiment.append(trace)
+            episode_rewards.append(play(seed_seq, env, pol, n_steps_per_episode))
+            walltimes.append(monotonic())
 
-        traces.append(np.concatenate(trace_per_experiment))
+        # track whatever the episode runner yielded and per-episode time measurements
+        history.append(
+            (np.stack(episode_rewards), np.ediff1d(walltimes))
+        )
 
-    return np.stack(traces)
+    # unpack, stack, and then return a dictionary
+    episode_rewards, walltimes = map(np.stack, zip(*history))
+    return dict(
+        # the timestamp and git
+        __dttm__=strftime("%d%m%Y%H%M%S"),
+        __git__=snapshot_git(),
+        # entropy used by to seed this experiment
+        entropy=main.entropy,
+        # `episode_rewards[n, e, j]` the reward for (j+1)-th interaction in
+        #  episode `e` of experiment `n`
+        episode_rewards=episode_rewards,
+        # `walltimes[n, e, j]` the walltime in seconds took by the (j+1)-th
+        #  interaction in episode `e` of experiment `n`
+        walltimes=walltimes,
+        # meta information
+        n_processes=n_processes,
+        n_budget=n_budget,
+        n_states=n_states,
+        n_actions=n_actions,
+        discount=float("nan"),
+        n_experiments=n_experiments,
+        n_episodes_per_experiment=n_episodes_per_experiment,
+        n_steps_per_episode=n_steps_per_episode,
+    )

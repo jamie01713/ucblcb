@@ -157,3 +157,26 @@ def sneak_peek(
         return peeker(env)
 
     return peeker_with_alert
+
+
+def snapshot_git(path=None, *, diff: bool = True) -> dict:
+    """Save some minimal version control info so that past results
+    are easier to recover if something gets irreversibly forgotten.
+    """
+
+    try:
+        from git import Repo, InvalidGitRepositoryError
+
+        # open the repo
+        repo = Repo(path, search_parent_directories=True)
+
+        # get the head commit sha
+        head = str(repo.head.commit)
+
+        # get diff againts head
+        diff = repo.git.diff(None) if diff else ""
+
+    except (InvalidGitRepositoryError, ImportError):
+        head, diff = "", ""
+
+    return {"head": head, "diff": diff}
