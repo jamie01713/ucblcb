@@ -14,8 +14,8 @@ from functools import wraps
 from typing import Iterator
 from collections.abc import Callable
 
-from .envs.base import Env, Observation, Action
-from .policies.base import BasePolicy
+from ..envs.base import Env, Observation, Action
+from ..policies.base import BasePolicy
 
 
 def rollout(
