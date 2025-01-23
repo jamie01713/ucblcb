@@ -132,6 +132,8 @@ def run(
     # unpack, stack, and then return a dictionary
     episode_rewards, walltimes = map(np.stack, zip(*history))
     return dict(
+        # save the name of the policy played during the last replication
+        policy_name=repr(pol),
         # the timestamp and git
         __dttm__=strftime("%d%m%Y%H%M%S"),
         __git__=snapshot_git(),
