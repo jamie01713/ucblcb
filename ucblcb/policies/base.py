@@ -106,8 +106,8 @@ class BasePolicy:
     shape_in_: tuple[int, ...]
     n_arms_in_: int  # the number of arms to pick subsets from
 
-    n_pulls_a_: ndarray[int]
-    avg_rew_a_: ndarray[float]
+    n_pulls_k_: ndarray[int]
+    avg_rew_k_: ndarray[float]
 
     def __init__(
         self,
@@ -216,8 +216,8 @@ class BasePolicy:
     def setup_impl(self, /, obs, act, rew, new, *, random: Generator = None):
         # the base pocy tracks the number of times each arm has been interacted
         #  with and the average per-arm reward it yielded
-        self.n_pulls_a_ = np.zeros(self.n_arms_in_, int)
-        self.avg_rew_a_ = np.zeros(self.n_arms_in_, float)
+        self.n_pulls_k_ = np.zeros(self.n_arms_in_, int)
+        self.avg_rew_k_ = np.zeros(self.n_arms_in_, float)
 
         return self
 
@@ -226,16 +226,16 @@ class BasePolicy:
         # XXX this does `\mu_{n+m} - \mu_n = \frac{m}{n+m} (\bar{x}_m - \mu_n)`
         #     with per-arm m, n, and \bar{x}_m
         counts_ = np.sum(act, axis=0)  # XXX `act` is `(B, N)`
-        update_ = np.sum(rew, axis=0, where=act > 0) - counts_ * self.avg_rew_a_
+        update_ = np.sum(rew, axis=0, where=act > 0) - counts_ * self.avg_rew_k_
 
         # first, we make sure to keep track of pull counts
-        self.n_pulls_a_ += counts_
+        self.n_pulls_k_ += counts_
 
         # then, update the average per arm reward estimate
-        # XXX if we received no new samples for some `j` then `update_[j] = 0`
+        # XXX if we received no new samples for some `k` then `update_[k] = 0`
         #  and this zero is propagated through `.divide`, which is what we want
-        np.divide(update_, self.n_pulls_a_, where=self.n_pulls_a_ > 0, out=update_)
-        self.avg_rew_a_ += update_
+        np.divide(update_, self.n_pulls_k_, where=self.n_pulls_k_ > 0, out=update_)
+        self.avg_rew_k_ += update_
 
         # XXX do we assume partially observed rewards, i.e. only for the arms
         #  for which `act != 0`?

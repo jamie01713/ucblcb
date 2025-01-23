@@ -51,16 +51,16 @@ class UcbLcb(BasePolicy):
     threshold: float
 
     # attributes
-    # `n_{sa}` (pseudo-)count of pulls of arm `a` at state `s`
-    n_pulls_sa_: ndarray[int]  # (S, N)
+    # `n_{sk}` (pseudo-)count of pulls of arm `k` at state `s`
+    n_pulls_sk_: ndarray[int]  # (S, N)
 
-    # `q_{sa}` -- estimated immediate reward for pulling arm `a` at state `s` (not
+    # `q_{sk}` -- estimated immediate reward for pulling arm `k` at state `s` (not
     #  quite q-fun, since assumes one-shot interaction and no policy in the future
     #  trajectory). Also, it has no look-ahead:
-    #     \hat{q}_{sa} \approx E_{xr|sa} r_{sax} + \gamma \hat{v}_x \,,
+    #     \hat{q}_{sk} \approx E_{xr|sk} r_{skx} + \gamma \hat{v}_x \,,
     #  with
     #     \hat{v}_x = q_{xk_x}\,, k_x \in \arg\max_k q_{xk} \,.
-    avg_rew_sa_: ndarray[float]  # (S, N)
+    avg_rew_sk_: ndarray[float]  # (S, N)
 
     #  its lower- and upper- confidence bounds
     q_lcb_: ndarray[float]  # (S, N)
@@ -85,20 +85,16 @@ class UcbLcb(BasePolicy):
         self.threshold = threshold
 
     def sneak_peek(self, env, /) -> None:
-        """Brake open the black box and rummage in it for unfair advantage.
+        """Brake open the black box and rummage in it for unfair advantage."""
+        # ideally, whatever we get a hold of here should be estimated from some
+        #  sample collected burn-in period by standard means
+        if not isinstance(env, MDP):
+            raise NotImplementedError(type(env))
 
-        Notes
-        -----
-        The title is self-explanatory.
-
-        Any policy that makes use of this method on an environment that it is
-        played in should be ashamed of itself, condemned by its peers, and
-        shunned by everybody.
-        """
-
-        # Access to the env's internals
-        assert isinstance(env, MDP)
-        raise NotImplementedError
+        # the expected reward at state `s` from arm `k` if it is not pulled (`a=0`)
+        #  `\phi_k(s, a) = \sum_x p_{nsax} r_{nsax}`
+        # XXX note transposed output dims, since `phi_sk_` is `(S, N,)`!
+        self.phi_sk_ = np.einsum("ksax,ksax->ask", env.kernels, env.rewards)[0]
 
     def setup_impl(self, /, obs, act, rew, new, *, random: Generator = None):
         """Initialize the ucb-lcb state from the transition."""
@@ -106,12 +102,15 @@ class UcbLcb(BasePolicy):
 
         # init the state-arm tables
         shape = self.n_states, self.n_arms_in_
-        self.n_pulls_sa_ = np.zeros(shape, int)
-        self.avg_rew_sa_ = np.zeros(shape, float)
+        self.n_pulls_sk_ = np.zeros(shape, int)
+        self.avg_rew_sk_ = np.zeros(shape, float)
 
         # prepare the lower- and upper- confidence bounds
         self.q_lcb_ = np.full(shape, -np.inf, float)
         self.q_ucb_ = np.full(shape, +np.inf, float)
+
+        # expected reward of arm `k` leaving state `s` under action `0`
+        self.phi_sk_ = np.zeros((self.n_states, self.n_arms_in_), float)
 
         return self
 
@@ -123,23 +122,23 @@ class UcbLcb(BasePolicy):
         #     with per-state-arm m, n, and \bar{x}_m
         idx = np.broadcast_to(np.arange(self.n_arms_in_)[np.newaxis], obs.shape)
 
-        # m_{sa} = \sum_{t: x_{ta} = s} 1_{a_{ta} > 0}
+        # m_{sk} = \sum_{t: x^k_t = s} 1_{a^k_t > 0}
         # XXX scatter-add:
-        #   update_[s, a] = \sum_{b: obs[b, a] = s, act[b, a] > 0} rew[b, a]
-        m_sa = np.zeros_like(self.n_pulls_sa_)
-        np.add.at(m_sa, (obs, idx), act != 0)  # `m_{sa}`
+        #   update_[s, k] = \sum_{b: obs[b, k] = s, act[b, k] > 0} rew[b, k]
+        m_sk = np.zeros_like(self.n_pulls_sk_)
+        np.add.at(m_sk, (obs, idx), act != 0)  # `m_{sk}`
 
         # make sure to keep track of pull counts (any non-zero action)
-        self.n_pulls_sa_ += m_sa
+        self.n_pulls_sk_ += m_sk
 
-        # m_{sa} \bar{x}_{m_{sa}} = \sum_{t: x_{ta} = s, a_{ta} > 0} r_{ta}
-        upd_sa = -m_sa * self.avg_rew_sa_
+        # m_{sk} \bar{x}_{m_{sk}} = \sum_{t: x^k_t = s, a^k_t > 0} r^k_t
+        upd_sk = -m_sk * self.avg_rew_sk_
         val_ = np.where(act != 0, rew, 0.0)
-        np.add.at(upd_sa, (obs, idx), val_)
+        np.add.at(upd_sk, (obs, idx), val_)
 
         # update the average per state-arm reward estimate (q-value of pull)
-        np.divide(upd_sa, self.n_pulls_sa_, where=self.n_pulls_sa_ > 0, out=upd_sa)
-        self.avg_rew_sa_ += upd_sa
+        np.divide(upd_sk, self.n_pulls_sk_, where=self.n_pulls_sk_ > 0, out=upd_sk)
+        self.avg_rew_sk_ += upd_sk
 
         return self
 
@@ -151,22 +150,25 @@ class UcbLcb(BasePolicy):
         # XXX usually `batch == 1`, i.e. single-element batch of observations.
         idx = np.broadcast_to(np.arange(self.n_arms_in_)[np.newaxis], obs.shape)
 
-        # get `(b, a) -> ucb_[obs[b, a], a]` and lcb -- the upper/lower confidence
-        #  bounds of each arm at its observed state in the batch
+        # get incremental reward
+        inc_rew_sk_ = self.avg_rew_sk_ - self.phi_sk_
+
+        # get `(b, k) -> ucb_[obs[b, k], k]` and lcb -- the upper/lower confidence
+        #  bounds of each arm `k` at its observed state in the batch item `b`
         # XXX each arms gets at most one pull per step so
-        #     `np.sum(self.n_pulls_sa_) <= self.n_max_steps`
-        lcb_ = self.avg_rew_sa_ - lcb(self.n_pulls_sa_, self.n_max_steps)
-        ucb_ = self.avg_rew_sa_ + ucb(self.n_pulls_sa_, self.n_max_steps)
-        lcb_ba, ucb_ba = lcb_[obs, idx], ucb_[obs, idx]
+        #     `np.sum(self.n_pulls_sk_) <= self.n_max_steps`
+        lcb_ = inc_rew_sk_ - lcb(self.n_pulls_sk_, self.n_max_steps)
+        ucb_ = inc_rew_sk_ + ucb(self.n_pulls_sk_, self.n_max_steps)
+        lcb_bk, ucb_bk = lcb_[obs, idx], ucb_[obs, idx]
 
         # lexsort: first order the arms (in each batch item) by increasing ucb,
         #  then stably sort by thresholded lcb in ascending order. Thresholding
         #  makes the sorting key insensitive to values lower than `\gamma`, hence
         #  preserving the order-by-ucb. which is what we actually need in the algo!
         # XXX in `.lexsort` the last key in the tuple is primary
-        order = np.lexsort((ucb_ba, np.clip(lcb_ba, min=self.threshold)), axis=-1)
+        order = np.lexsort((ucb_bk, np.clip(lcb_bk, min=self.threshold)), axis=-1)
 
-        # b -> {a: lcb_[obs[b, a], a] < \tau}
+        # b -> {k: lcb_[obs[b, k], k] < \tau}
         # get the binary interaction mask (integers)
         # XXX we don't care if we are under budget
         subsets = np.zeros(order.shape, int)
