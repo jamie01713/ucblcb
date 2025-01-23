@@ -134,7 +134,7 @@ def sq_spawn(
 
 
 def sneak_peek(
-    pol: BasePolicy, /, method: str = "take_a_gander", *, honest: bool = True
+    pol: BasePolicy, /, method: str = "sneak_peek", *, honest: bool = True
 ) -> Callable[[Env], None]:
     """Brake open the black box and let the policy rummage in it for unfair advantage.
 

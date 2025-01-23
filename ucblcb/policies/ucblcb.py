@@ -4,6 +4,7 @@ from numpy import ndarray
 from numpy.random import Generator
 
 from .base import BasePolicy
+from ..envs.mdp import MDP
 
 
 def lcb(N, T=None, *, C: float = 1.0):
@@ -94,9 +95,10 @@ class UcbLcb(BasePolicy):
         played in should be ashamed of itself, condemned by its peers, and
         shunned by everybody.
         """
-        """Give the policy an unfair advantage by allowing it access to the env's internals.
-        """
-        pass
+
+        # Access to the env's internals
+        assert isinstance(env, MDP)
+        raise NotImplementedError
 
     def setup_impl(self, /, obs, act, rew, new, *, random: Generator = None):
         """Initialize the ucb-lcb state from the transition."""
