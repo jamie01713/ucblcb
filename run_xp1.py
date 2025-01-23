@@ -91,7 +91,7 @@ def main(
     Policy = partial(cls, **(params if isinstance(params, dict) else {}))
 
     # run the experiment
-    results = xp1.run(
+    pol_instance, results = xp1.run(
         *main.spawn(1),
         Policy,
         kernels,
@@ -139,6 +139,8 @@ def main(
     # save the pdf
     fig.savefig(os.path.join(path, f"fig1__{filename_tag}.pdf"))
 
+    return pol_instance, results
+
 
 if __name__ == "__main__":
     # why not use pydantic and manage experiments via json?
@@ -170,4 +172,4 @@ if __name__ == "__main__":
     # https://docs.python.org/3/library/argparse.html#argparse.ArgumentParser.parse_known_args
     args, _ = parser.parse_known_args()
 
-    main(temperature=0.5, **vars(args))
+    pol_instance, results = main(temperature=0.5, **vars(args))  # noqa: F401

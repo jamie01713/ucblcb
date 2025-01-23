@@ -62,10 +62,6 @@ class UcbLcb(BasePolicy):
     #     \hat{v}_x = q_{xk_x}\,, k_x \in \arg\max_k q_{xk} \,.
     avg_rew_sk_: ndarray[float]  # (S, N)
 
-    #  its lower- and upper- confidence bounds
-    q_lcb_: ndarray[float]  # (S, N)
-    q_ucb_: ndarray[float]  # (S, N)
-
     def __repr__(self) -> str:
         return type(self).__name__ + f"(threshold={self.threshold})"
 
@@ -104,10 +100,6 @@ class UcbLcb(BasePolicy):
         shape = self.n_states, self.n_arms_in_
         self.n_pulls_sk_ = np.zeros(shape, int)
         self.avg_rew_sk_ = np.zeros(shape, float)
-
-        # prepare the lower- and upper- confidence bounds
-        self.q_lcb_ = np.full(shape, -np.inf, float)
-        self.q_ucb_ = np.full(shape, +np.inf, float)
 
         # expected reward of arm `k` leaving state `s` under action `0`
         self.phi_sk_ = np.zeros((self.n_states, self.n_arms_in_), float)
@@ -150,8 +142,11 @@ class UcbLcb(BasePolicy):
         # XXX usually `batch == 1`, i.e. single-element batch of observations.
         idx = np.broadcast_to(np.arange(self.n_arms_in_)[np.newaxis], obs.shape)
 
-        # get incremental reward
-        inc_rew_sk_ = self.avg_rew_sk_ - self.phi_sk_
+        # get incremental reward: force it to +infty if the arm has never been
+        #  interacted with, -- this guarantees that it will be pulled!
+        inc_rew_sk_ = np.where(
+            self.n_pulls_sk_ > 0, self.avg_rew_sk_ - self.phi_sk_, np.inf
+        )
 
         # get `(b, k) -> ucb_[obs[b, k], k]` and lcb -- the upper/lower confidence
         #  bounds of each arm `k` at its observed state in the batch item `b`
