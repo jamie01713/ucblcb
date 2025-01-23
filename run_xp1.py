@@ -12,6 +12,7 @@ python run_xp1.py ucblcb.policies.UcbLcb               \
 
 import os
 import pickle
+import warnings
 
 import json
 import numpy as np
@@ -52,7 +53,11 @@ def main(
     n_episodes_per_experiment: int = 33,
     # the number of instraction steps in each episode
     n_steps_per_episode: int = 500,
+    **ignore,
 ):
+    if not ignore:
+        warnings.warn(repr(ignore), RuntimeWarning)
+
     main = SeedSequence(entropy)
 
     # ensure the supplied policy is correct
@@ -147,19 +152,19 @@ if __name__ == "__main__":
 
     # the policy and its hyperparameters
     parser.add_argument("cls", type="qualname", default="ucblcb.policies.ucblcb.UcbLcb")
-    parser.add_argument("--params", required=False, type="json", default='{}')
+    parser.add_argument("--params", required=False, type="json", default="{}")
     parser.add_argument("--entropy", required=False, type="hexadecimal", default=None)
 
-    parser.add_argument("--n_population", type=int, default=1000)
-    parser.add_argument("--n_states", type=int, default=5)
-    parser.add_argument("--n_actions", type=int, default=3)
-    parser.add_argument("--n_processes", type=int, default=25)
-    parser.add_argument("--n_budget", type=int, default=7)
-    parser.add_argument("--n_experiments", type=int, default=100)
-    parser.add_argument("--n_episodes_per_experiment", type=int, default=33)
-    parser.add_argument("--n_steps_per_episode", type=int, default=500)
-
     parser.add_argument("--path", type=str, default="./")
+
+    parser.add_argument("--n_population",                    type=int, default=1000)
+    parser.add_argument("--n_states",                  "-S", type=int, default=5)
+    parser.add_argument("--n_actions",                 "-A", type=int, default=3)
+    parser.add_argument("--n_processes",               "-N", type=int, default=25)
+    parser.add_argument("--n_budget",                  "-B", type=int, default=7)
+    parser.add_argument("--n_experiments",             "-E", type=int, default=100)
+    parser.add_argument("--n_episodes_per_experiment", "-T", type=int, default=33)
+    parser.add_argument("--n_steps_per_episode",       "-H", type=int, default=500)
 
     # get the namespace with declared cli args, and a list of remaining argument strings
     # https://docs.python.org/3/library/argparse.html#argparse.ArgumentParser.parse_known_args
