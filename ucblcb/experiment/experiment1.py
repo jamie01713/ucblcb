@@ -155,3 +155,34 @@ def run(
         n_episodes_per_experiment=n_episodes_per_experiment,
         n_steps_per_episode=n_steps_per_episode,
     )
+
+
+def make_name(
+    xp: str = "xp1",
+    /,
+    *,
+    policy_name: str,
+    entropy: int,
+    n_processes: int,
+    n_budget: int,
+    n_states: int,
+    n_actions: int,
+    n_experiments: int,
+    n_episodes_per_experiment: int,
+    n_steps_per_episode: int,
+    **ignore,
+) -> str:
+    """Make a name for this experiment."""
+
+    suffix = "__".join(
+        [
+            f"n{n_processes}",
+            f"b{n_budget}",
+            f"s{n_states}",
+            f"a{n_actions}",
+            f"H{n_steps_per_episode}",
+            f"L{n_episodes_per_experiment}",
+            f"E{n_experiments}",
+        ]
+    )
+    return f"{xp}__{suffix}__{policy_name}__{entropy}"
