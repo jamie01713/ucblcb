@@ -441,6 +441,7 @@ class Whittle(BasePolicy):
     gamma: float
 
     # attributes
+    n_whittle_iters_: int
     whittle_ks_: ndarray[float]  # (N, S)
     value_ks_: ndarray[float]  # (N, S)
 
