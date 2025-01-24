@@ -1,13 +1,4 @@
-"""
-python run_xp1.py ucblcb.policies.RandomSubsetPolicy   \
-    --params='{}'                                      \
-    --entropy=B76A074C23C703767710E1D756F73AE9         \
-    --path='./results'
-
-python run_xp1.py ucblcb.policies.UcbLcb               \
-    --params='{"threshold": 0.65}'                     \
-    --entropy=B76A074C23C703767710E1D756F73AE9         \
-    --path='./results'
+"""Run experiment ype 1 on the given policy.
 """
 
 import os
