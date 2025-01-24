@@ -4,7 +4,6 @@ from numpy import ndarray
 from numpy.random import Generator
 
 from .base import BasePolicy
-from .ucblcb import UcbLcb  # we borrow update and setup
 from ..envs.mdp import MDP
 
 from scipy.optimize import linprog
@@ -199,7 +198,7 @@ def qvalue(ker: ndarray, rew: ndarray, val: ndarray, *, gam: float) -> ndarray:
     # `ker` is (..., A, S, X)
     # `rew` is (..., A, S, X)  # multiplication broadcasts with rew automatically
     # `val` is (...,       S)  # `S = X` need to inject unit dims!
-    return np.sum(ker * (rew + gam * np.expand_dims(val, (-3, -2))), -1)
+    return np.sum(ker * (rew + gam * np.expand_dims(val, (-3, -2))), -1)  # (..., A, S)
 
 
 def bellman(ker: ndarray, rew: ndarray, val: ndarray, *, gam: float) -> ndarray:
@@ -273,7 +272,7 @@ def vi_inf(
         val, val_ = bellman(ker, rew, val, gam=gam), val
         n_iters, is_first = n_iters + 1, False
 
-    return n_iters, val
+    return n_iters, val  # (..., S)
 
 
 def qfun_vi_inf(
@@ -283,25 +282,35 @@ def qfun_vi_inf(
 
     # fp iterations complexity proportional to :math:`\frac1{1 - \gamma}`
     n_iter, val = vi_inf(ker, rew, val, gam=gam)
-    return n_iter + 1, qvalue(ker, rew, val, gam=gam)
+    return n_iter + 1, qvalue(ker, rew, val, gam=gam)  # (..., A, S)
 
 
-def aug_qfun_vi_inf(
-    ker: ndarray, rew: ndarray, lam: ndarray, *, gam: float
-) -> tuple[int, ndarray]:
-    r"""The optimal q-value for the one reward-augmented binary-action problem.
+def aug_qfun_vi_inf(ker: ndarray, rew: ndarray, lam: ndarray, *, gam: float) -> ndarray:
+    r"""The optimal q-values of the augmented processes at each initial state
+    and the static lambda.
 
     Notes
     -----
-    The following computes :math:`V^H(s)` for every :math:`s \in S` via the
-    lookahead recurrence with constant :math:`\lambda \in \mathbb{R}` action-
-    dependent augmentation
+    For the given process :math:`k` and the matrix :math:`(\lambda_{kx})_{x \in S}`
+    this procedure computes
 
     .. math::
 
-        V^{h+1} = \max_u T_u V^h - \lambda 1_{u \neq 0} \,, h < H
+        Q_k^H(a, s; \lambda_{ks})
+            = (\tilde{T}^{(k)}_{a \mid \lambda_{ks}})^{H-1} V_k^0[s]
+        \,,
 
-    where :math:`\gamma \in [0, 1]` is the discount factor.
+    with
+
+    .. math::
+
+        \tilde{T}^{(k)}_{a \mid \lambda} J
+            = T^{(k)}_a J - \lamdba^\top A_k a
+        \,,
+
+    where, __IMPORTANTLY__, :math:`\lambda` is __CONSTANT__ wrt the intermediate
+    state, action, and horizon! The terminal valeu approximation :math:`V_k^0`
+    defaults to zero function.
     """
     # `ker` and `rew` must broadcast to each other
     ker, rew = np.broadcast_arrays(ker, rew)  # (..., A, S, X)
@@ -309,39 +318,29 @@ def aug_qfun_vi_inf(
     *batch, n_actions, n_states, n_states_ = ker.shape
     assert n_states == n_states_, ker.shape
 
-    # augment the "active" action reward with the action-1 break even cost `lam`
-    # which must have shape `(..., S)` and then get the optimal q-value
-    lam = np.expand_dims(lam, (-1, -3))  # (..., S) -> (..., 1, S, 1)
-    return qfun_vi_inf(ker, rew[..., 1:, :, :] - lam, 0.0, gam=gam)
+    def per_state(lam: ndarray) -> ndarray:
+        # augment the "active" action rewards with the `action != 0` break even cost
+        #  `lam`, which must have shape `(..., S)` and then get the optimal q-value
+        aug = np.astype(rew, float, copy=True)  # (..., A, S, X)
+        aug[..., 1:, :, :] -= np.expand_dims(lam, (-3, -2, -1))
+        _, qval = qfun_vi_inf(ker, aug, 0.0, gam=gam)
+        return qval  # (..., A, S)
 
-    r"""The optimal q-value of the augmented process at each initial state
-    and the static lambda, corresponding to that initial state.
-
-    Notes
-    -----
-    For the given process :math:`k` and the vector :math:`(\lambda_x)_{x \in S}`
-    this procedure computes
-
-    .. math::
-
-        Q_k^H(a, \cdot; \lambda_x)
-            = (\tilde{T}^{(k)}_{a\mid \lambda_x})^{H-1} V_k^0[\cdot]
-
-    with
-
-    .. math::
-        \tilde{T}^{(k)}_{a \mid \lambda} J = T^{(k)}_a J - \lamdba^\top A_k a
-
-    where, __IMPORTANTLY__, :math:`\lambda` is __CONSTANT__ wrt intermediate state,
-    action, and horizon!
-
-    The returned value of the "diagonal" :math:`Q_k^H(a, x, \lambda_x)` for
-    :math:`x \in S`.
-    """
+    # we must pick the trailing diagonal, because `apply_over_axes` computes
+    # `(Ni..., Nj..., Nk...)` from `arr=(Ni..., M, Nk...)` and `f: (M,) -> (Nj...)`
+    #  and we have Ni... = (), M = N, Nk... = (S,), and Nj... = (N, A, S), which
+    #  means that the result of this call is `(N, A, S, S)`
+    return np.diagonal(np.apply_along_axis(per_state, 0, lam), 0, -2, -1)
 
 
 def whittle_vi_inf_bisect(
-    ker: ndarray, rew: ndarray, *, gam: float, is_allclose: Callable = is_allclose
+    ker: ndarray,
+    rew: ndarray,
+    *,
+    gam: float,
+    lb: ndarray = None,
+    ub: ndarray = None,
+    atol: float = 1e-4,
 ) -> tuple[int, ndarray]:
     r"""Compute per-state Whittle index using the bisection method.
 
@@ -406,32 +405,32 @@ def whittle_vi_inf_bisect(
     # prepate the lower/upper- bounds for the bisection search
     # setup the bisection search for equilibrium lambdas for each initial state
     # XXX bounds is (lb, ub), each array of float of shape (..., n_states,)
-    lb = np.broadcast_to(rew.min(), (*batch, n_states))
-    ub = np.broadcast_to(rew.max(), (*batch, n_states))
+    lb = np.broadcast_to(rew.min() if lb is None else lb, (*batch, n_states))
+    ub = np.broadcast_to(rew.max() if ub is None else ub, (*batch, n_states))
+    assert np.all(lb <= ub)
 
     def bisect_(c, /, lb, x, ub):
         return np.where(c, x, lb), np.where(c, ub, x)
         # (x[j], ub[j]) if c[j] else (lb[j], x[j])
 
     # loop until all `lb` and `ub` are close
-    n_total_iters = 0
-    while not is_allclose(lb, ub):
+    while np.max(abs(lb - ub)) > atol:
         # bisect the current interval
         lam = (lb + ub) / 2
 
         # get the optimal q-function for the processes with cost-adjusted rewards
-        n_iters, qval_kas = aug_qfun_vi_inf(ker, rew, lam, gam=gam)  # (..., A, S)
+        qval_kas = aug_qfun_vi_inf(ker, rew, lam, gam=gam)  # (..., A, S)
         q0_ks, q1_ks = qval_kas[..., 0, :], qval_kas[..., 1, :]
 
         # choose the half-interval based on q0 and q1: if q1 is better than q0,
-        #  then the `a=1` cost `lam` is too low, and must be increased
+        #  then the `a=1` cost `lam` is too low, and must be increased. Hence we
+        #  must pick the right higher interval.
         lb, ub = bisect_(q0_ks <= q1_ks, lb, lam, ub)
-        n_total_iters += n_iters
 
     # recompute the final v-function at the mid-point lambda
     lam = (lb + ub) / 2
-    n_iters, qval_kas = aug_qfun_vi_inf(ker, rew, lam, gam=gam)
-    return n_total_iters + n_iters, (lam, np.max(qval_kas, -2))
+    qval_kas = aug_qfun_vi_inf(ker, rew, lam, gam=gam)
+    return lb, lam, ub, np.max(qval_kas, -2)
 
 
 class Whittle(BasePolicy):
@@ -441,7 +440,6 @@ class Whittle(BasePolicy):
     gamma: float
 
     # attributes
-    n_whittle_iters_: int
     whittle_ks_: ndarray[float]  # (N, S)
     value_ks_: ndarray[float]  # (N, S)
 
@@ -472,7 +470,7 @@ class Whittle(BasePolicy):
             raise NotImplementedError(type(env))
 
         # precompute the whittle index for all arms and all states
-        (self.n_whittle_iters_, (self.whittle_ks_, self.value_ks_)) = (
+        _, self.whittle_ks_, _, self.value_ks_ = (
             whittle_vi_inf_bisect(env.kernels, env.rewards, gam=self.gamma)
         )
 
