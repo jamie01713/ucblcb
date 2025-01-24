@@ -1,21 +1,25 @@
 import numpy as np
-from numpy import ndarray
 
+import jax
+from jax import numpy as jp, random as jr, tree_util as tu  # noqa: F401
+from functools import partial
+
+from scipy.optimize import linprog
+from scipy import sparse as sp
+
+from numpy import ndarray
+from chex import Array
 from numpy.random import Generator
+from collections.abc import Callable
 
 from .base import BasePolicy
 from ..envs.mdp import MDP
 
-from scipy.optimize import linprog
-from scipy import sparse as sp
-from collections.abc import Callable
-from functools import partial
+
+is_allclose = partial(jp.allclose, rtol=1e-4, atol=1e-5)
 
 
-is_allclose = partial(np.allclose, rtol=1e-3, atol=1e-5)
-
-
-def lp_inf(ker: ndarray, rew: ndarray, *, gam: float) -> ndarray:
+def npy_lp_inf(ker: ndarray, rew: ndarray, *, gam: float) -> ndarray:
     r"""Solve the LP equivalent of the infinite horizon optimal control.
 
     Parameters
@@ -146,7 +150,8 @@ def lp_inf(ker: ndarray, rew: ndarray, *, gam: float) -> ndarray:
     return np.reshape(sol.x.astype(ker.dtype), c.shape)
 
 
-def qvalue(ker: ndarray, rew: ndarray, val: ndarray, *, gam: float) -> ndarray:
+@partial(jax.jit, static_argnames=["gam"], inline=True)
+def qvalue(ker: Array, rew: Array, val: Array, *, gam: float) -> Array:
     r"""the Bellman optimality operator :math:`T_\ast` on the given value function.
 
     Parameters
@@ -185,23 +190,24 @@ def qvalue(ker: ndarray, rew: ndarray, val: ndarray, *, gam: float) -> ndarray:
     by :math:`T_\ast V[s] = \max_a T_a V[s]`.
     """
     # `ker` and `rew` must broadcast to each other
-    ker, rew = np.broadcast_arrays(ker, rew)  # (N, A, S, X)
+    ker, rew = jp.broadcast_arrays(ker, rew)  # (..., A, S, X)
 
     # `ker` and `rew` broadcast to `(..., A, S, X)`
     *batch, n_actions, n_states, n_states_ = ker.shape
     assert n_states == n_states_
 
     # the state-value vector `val` must broadcast over batch and state
-    val = np.broadcast_to(val, (*batch, n_states))  # (..., S)
+    val = jp.broadcast_to(val, (*batch, n_states))  # (..., S)
 
     # q-value backup (X === S)
     # `ker` is (..., A, S, X)
     # `rew` is (..., A, S, X)  # multiplication broadcasts with rew automatically
     # `val` is (...,       S)  # `S = X` need to inject unit dims!
-    return np.sum(ker * (rew + gam * np.expand_dims(val, (-3, -2))), -1)  # (..., A, S)
+    return jp.sum(ker * (rew + gam * jp.expand_dims(val, (-3, -2))), -1)  # (..., A, S)
 
 
-def bellman(ker: ndarray, rew: ndarray, val: ndarray, *, gam: float) -> ndarray:
+@partial(jax.jit, static_argnames=["gam"], inline=True)
+def bellman(ker: Array, rew: Array, val: Array, *, gam: float) -> Array:
     r"""the Bellman optimality operator :math:`T_\ast` on the given value function.
 
     Returns
@@ -214,18 +220,19 @@ def bellman(ker: ndarray, rew: ndarray, val: ndarray, *, gam: float) -> ndarray:
     # use the optimal policy on the q-function `(a, s) \mapsto T_a V[s]`  to get
     #  `V \colon s \mapsto T_\ast J[s] = \max_a T_a J[s]`
     # XXX v(s) = \mathbb{E}_{\pi(a | s)} q(s, a) for \pi_\ast(s) \in \arg\max_a q(s, a)
-    return np.max(qvalue(ker, rew, val, gam=gam), -2)  # (..., A, S) -> (..., S)
+    return jp.max(qvalue(ker, rew, val, gam=gam), -2)  # (..., A, S) -> (..., S)
 
 
+@partial(jax.jit, static_argnames=["gam", "is_allclose"], inline=False)
 def vi_inf(
-    ker: ndarray,
-    rew: ndarray,
+    ker: Array,
+    rew: Array,
     /,
-    val: ndarray = None,
+    val: Array = None,
     *,
     gam: float,
     is_allclose: Callable = is_allclose,
-) -> tuple[int, ndarray]:
+) -> tuple[int, Array]:
     r"""Infinite horizon value iteration on a discrete MDP `(P, R, gam)`.
 
     Parameters
@@ -261,23 +268,27 @@ def vi_inf(
     assert 0 <= gam < 1
 
     # kickstart the VI with `v_1 = T_\ast v_0` (fixed point iters)
-    val_ = val = bellman(ker, rew, 0.0 if val is None else val, gam=gam)
+    val = bellman(ker, rew, 0.0 if val is None else val, gam=gam)
 
     # use the while-loop to get the FP of T_\ast
-    n_iters, is_first = 1, True
+    def cond(carry) -> bool:
+        """stop if close within relative tolerance, but not on the first iteration"""
+        _, is_first, val_, val = carry
+        return jp.logical_or(is_first, jp.logical_not(is_allclose(val_, val)))
 
-    # stop if close within relative tolerance, but not on the first iteration
-    while is_first or not is_allclose(val_, val):
-        # apply the bellman operator to the current v-fun
-        val, val_ = bellman(ker, rew, val, gam=gam), val
-        n_iters, is_first = n_iters + 1, False
+    def body(carry) -> tuple[int, bool, Array, Array]:
+        """Apply the bellman operator to the current value function"""
+        m, _, _, val = carry
+        return m + 1, False, val, bellman(ker, rew, val, gam=gam)
 
+    n_iters, _, _, val = jax.lax.while_loop(cond, body, (jp.int32(0), True, val, val))
     return n_iters, val  # (..., S)
 
 
+@partial(jax.jit, static_argnames=["gam"], inline=True)
 def qfun_vi_inf(
-    ker: ndarray, rew: ndarray, val: ndarray, *, gam: float
-) -> tuple[int, ndarray]:
+    ker: Array, rew: Array, val: Array, *, gam: float
+) -> tuple[int, Array]:
     """optimal q-value of the infinite horizon control through value iterations."""
 
     # fp iterations complexity proportional to :math:`\frac1{1 - \gamma}`
@@ -285,9 +296,12 @@ def qfun_vi_inf(
     return n_iter + 1, qvalue(ker, rew, val, gam=gam)  # (..., A, S)
 
 
-def aug_qfun_vi_inf(ker: ndarray, rew: ndarray, lam: ndarray, *, gam: float) -> ndarray:
-    r"""The optimal q-values of the augmented processes at each initial state
-    and the static lambda.
+@partial(jax.jit, static_argnames=["gam"], inline=True)
+def aug_qfun_vi_inf(
+    ker: Array, rew: Array, lam: Array, *, gam: float
+) -> tuple[int, Array]:
+    r"""The optimal q-values of the augmented process at each state `s` and cost
+    lambda `lam[s]`.
 
     Notes
     -----
@@ -313,36 +327,32 @@ def aug_qfun_vi_inf(ker: ndarray, rew: ndarray, lam: ndarray, *, gam: float) -> 
     defaults to zero function.
     """
     # `ker` and `rew` must broadcast to each other
-    ker, rew = np.broadcast_arrays(ker, rew)  # (..., A, S, X)
+    ker, rew = jp.broadcast_arrays(ker, rew)
 
-    *batch, n_actions, n_states, n_states_ = ker.shape
-    assert n_states == n_states_, ker.shape
+    n_actions, n_states, n_states_ = ker.shape
+    assert n_states == n_states_ == len(lam), ker.shape
 
-    def per_state(lam: ndarray) -> ndarray:
+    def aug_qfun(lam: float) -> tuple[int, Array]:
         # augment the "active" action rewards with the `action != 0` break even cost
-        #  `lam`, which must have shape `(..., S)` and then get the optimal q-value
-        aug = np.astype(rew, float, copy=True)  # (..., A, S, X)
-        aug[..., 1:, :, :] -= np.expand_dims(lam, (-3, -2, -1))
-        _, qval = qfun_vi_inf(ker, aug, 0.0, gam=gam)
-        return qval  # (..., A, S)
+        #  `lam`, which is scalar and then get the optimal q-value
+        return qfun_vi_inf(ker, rew.at[1:, :, :].add(-lam), 0.0, gam=gam)
 
-    # we must pick the trailing diagonal, because `apply_over_axes` computes
-    # `(Ni..., Nj..., Nk...)` from `arr=(Ni..., M, Nk...)` and `f: (M,) -> (Nj...)`
-    #  and we have Ni... = (), M = N, Nk... = (S,), and Nj... = (N, A, S), which
-    #  means that the result of this call is `(N, A, S, S)`
-    return np.diagonal(np.apply_along_axis(per_state, 0, lam), 0, -2, -1)
+    # compute the augmented q-function for every value in `lam` (S,)
+    n_iter, qval = jax.vmap(aug_qfun)(lam)  # `(S,)` and `(S, A, S)`, respectively
+
+    # pick `(a, s) -> qval[s, a, s]`
+    return n_iter, jp.diagonal(qval, 0, 0, -1)  # `(S, A, S) -> (A, S)`
 
 
+@partial(jax.jit, static_argnames=["gam", "is_allclose"], inline=True)
 def whittle_vi_inf_bisect(
-    ker: ndarray,
-    rew: ndarray,
+    ker: Array,
+    rew: Array,
     *,
     gam: float,
-    lb: ndarray = None,
-    ub: ndarray = None,
-    atol: float = 1e-4,
-) -> tuple[int, ndarray]:
-    r"""Compute per-state Whittle index using the bisection method.
+    is_allclose: Callable = is_allclose,
+) -> tuple[Array, Array, Array]:
+    r"""Compute the per-state Whittle index from one MDP using the bisection method.
 
     Notes
     -----
@@ -398,39 +408,56 @@ def whittle_vi_inf_bisect(
        https://dspace.mit.edu/handle/1721.1/29599
     """
 
-    ker, rew = np.broadcast_arrays(ker, rew)
-    *batch, n_actions, n_states, n_states_ = ker.shape
+    ker, rew = jp.broadcast_arrays(ker, rew)
+    n_actions, n_states, n_states_ = ker.shape
     assert n_actions == 2
 
-    # prepate the lower/upper- bounds for the bisection search
-    # setup the bisection search for equilibrium lambdas for each initial state
-    # XXX bounds is (lb, ub), each array of float of shape (..., n_states,)
-    lb = np.broadcast_to(rew.min() if lb is None else lb, (*batch, n_states))
-    ub = np.broadcast_to(rew.max() if ub is None else ub, (*batch, n_states))
-    assert np.all(lb <= ub)
-
     def bisect_(c, /, lb, x, ub):
-        return np.where(c, x, lb), np.where(c, ub, x)
+        return jp.where(c, x, lb), jp.where(c, ub, x)
         # (x[j], ub[j]) if c[j] else (lb[j], x[j])
 
     # loop until all `lb` and `ub` are close
-    while np.max(abs(lb - ub)) > atol:
+    def cond(bounds):
+        _, lb, ub = bounds
+        # bounds is (lb, ub), each array of float of shape (n_states,)
+        return jp.logical_not(is_allclose(lb, ub))
+
+    def body(bounds):
+        n_iter, lb, ub = bounds
+
         # bisect the current interval
         lam = (lb + ub) / 2
 
-        # get the optimal q-function for the processes with cost-adjusted rewards
-        qval_kas = aug_qfun_vi_inf(ker, rew, lam, gam=gam)  # (..., A, S)
-        q0_ks, q1_ks = qval_kas[..., 0, :], qval_kas[..., 1, :]
+        # get the optimal q-function for the process with cost-adjusted rewards
+        n_iter_s, (q0_s, q1_s) = aug_qfun_vi_inf(ker, rew, lam, gam=gam)
 
         # choose the half-interval based on q0 and q1: if q1 is better than q0,
         #  then the `a=1` cost `lam` is too low, and must be increased. Hence we
         #  must pick the right higher interval.
-        lb, ub = bisect_(q0_ks <= q1_ks, lb, lam, ub)
+        return n_iter + n_iter_s, *bisect_(q0_s <= q1_s, lb, lam, ub)
+
+    # prepare the lower/upper- bounds for the bisection search
+    # setup the bisection search for equilibrium lambdas for each initial state
+    # XXX bounds is (lb, ub), each array of float of shape (n_states,)
+    lb0 = jp.broadcast_to(rew.min(), (n_states,))
+    ub0 = jp.broadcast_to(rew.max(), (n_states,))
+    n_iter = jp.zeros(n_states, jp.int32)
+
+    # run the bisection search for equilibrium lambdas for each initial state
+    n_iter, lb, ub = jax.lax.while_loop(cond, body, (n_iter, lb0, ub0))
 
     # recompute the final v-function at the mid-point lambda
     lam = (lb + ub) / 2
-    qval_kas = aug_qfun_vi_inf(ker, rew, lam, gam=gam)
-    return lb, lam, ub, np.max(qval_kas, -2)
+    n_iter_s, qval_as = aug_qfun_vi_inf(ker, rew, lam, gam=gam)
+    return n_iter + n_iter_s, lam, jp.max(qval_as, -2)
+
+
+@partial(jax.jit, static_argnames=["gam"], inline=True)
+def batched_whittle_vi_inf_bisect(
+    ker: Array, rew: Array, *, gam: float
+) -> tuple[Array, Array, Array]:
+    """Compute Whittle index function for a batch of MDPs using the bisection method."""
+    return jax.vmap(partial(whittle_vi_inf_bisect, gam=gam))(ker, rew)
 
 
 class Whittle(BasePolicy):
@@ -440,6 +467,7 @@ class Whittle(BasePolicy):
     gamma: float
 
     # attributes
+    n_iter_k_: ndarray[int]  # (N, S)
     whittle_ks_: ndarray[float]  # (N, S)
     value_ks_: ndarray[float]  # (N, S)
 
@@ -470,9 +498,8 @@ class Whittle(BasePolicy):
             raise NotImplementedError(type(env))
 
         # precompute the whittle index for all arms and all states
-        _, self.whittle_ks_, _, self.value_ks_ = (
-            whittle_vi_inf_bisect(env.kernels, env.rewards, gam=self.gamma)
-        )
+        res = batched_whittle_vi_inf_bisect(env.kernels, env.rewards, gam=self.gamma)
+        self.n_iter_ks_, self.whittle_ks_, self.value_ks_ = map(np.asarray, res)
 
     # uninitialized_decide_impl defaults to `randomsubset(.budget, obs.shape[1])`
 
