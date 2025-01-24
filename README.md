@@ -39,6 +39,7 @@ ipython -i run_xp1.py -- ucblcb.policies.RandomSubsetPolicy   \
     --entropy=B76A074C23C703767710E1D756F73AE9                \
     --path='./results'                                        \
     --n_processes=100                                         \
+    --n_actions=2                                             \
     --n_budget=20                                             \
     --n_experiments=30                                        \
     --n_episodes_per_experiment=20                            \
@@ -49,6 +50,18 @@ ipython -i run_xp1.py -- ucblcb.policies.UcbLcb               \
     --entropy=B76A074C23C703767710E1D756F73AE9                \
     --path='./results'                                        \
     --n_processes=100                                         \
+    --n_actions=2                                             \
+    --n_budget=20                                             \
+    --n_experiments=30                                        \
+    --n_episodes_per_experiment=20                            \
+    --n_steps_per_episode=500
+
+ipython -i run_xp1.py -- ucblcb.policies.Whittle              \
+    --params='{"gamma": 0.95}'                                \
+    --entropy=B76A074C23C703767710E1D756F73AE9                \
+    --path='./results'                                        \
+    --n_processes=100                                         \
+    --n_actions=2                                             \
     --n_budget=20                                             \
     --n_experiments=30                                        \
     --n_episodes_per_experiment=20                            \
