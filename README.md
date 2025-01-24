@@ -13,14 +13,15 @@ In general, the following setup should suffice for development or reproduction
 # XXX micromamba deactivate && micromamba env remove -n ucblcb
 micromamba create -n ucblcb                    \
   "python>=3.11"                               \
-  "numpy=2"                                    \
-  "scipy=1"                                    \
-  "jax=0.4"                                    \
-  "scikit-learn=1"                             \
-  "pandas=2"                                   \
+  numpy                                        \
+  scipy                                        \
+  jax                                          \
+  chex                                         \
+  scikit-learn                                 \
+  pandas                                       \
   gitpython                                    \
-  "matplotlib=3"                               \
-  "gymnasium=1"                                \
+  matplotlib                                   \
+  gymnasium                                    \
   "gurobi::gurobi=12"                          \
   jupyter                                      \
   tqdm                                         \
