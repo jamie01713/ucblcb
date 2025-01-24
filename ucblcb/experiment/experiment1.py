@@ -78,7 +78,7 @@ def run(
     n_episodes_per_experiment: int,
     n_steps_per_episode: int,
 ) -> tuple[BasePolicy, dict]:
-    n_population, n_states, n_actions, _ = kernels.shape
+    n_population, n_actions, n_states, _ = kernels.shape
     assert 0 < n_budget <= n_processes
 
     # prepare the policy spawner
