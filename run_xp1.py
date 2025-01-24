@@ -68,8 +68,8 @@ def main(
         random_.normal(
             size=(
                 n_population,
-                n_states,
                 n_actions,
+                n_states,
                 n_states,
             )
         )

@@ -50,13 +50,16 @@ class UcbLcb(BasePolicy):
     # `n_{sk}` (pseudo-)count of pulls of arm `k` at state `s`
     n_pulls_sk_: ndarray[int]  # (S, N)
 
-    # `q_{sk}` -- estimated immediate reward for pulling arm `k` at state `s` (not
-    #  quite q-fun, since assumes one-shot interaction and no policy in the future
-    #  trajectory). Also, it has no look-ahead:
-    #     \hat{q}_{sk} \approx E_{xr|sk} r_{skx} + \gamma \hat{v}_x \,,
+    # `q_{sk}` -- estimated immediate reward for pulling arm `k` at state `s` (i.e.
+    #  playing `a_k = 1`). This is not quite a q-fun, since it assumes one-off
+    #  interaction and no future policy to follow). Also, it has no look-ahead:
+    #     \hat{q}_{kas} \approx E_{p_k(x|s, a)} r_{kasx} + \gamma \hat{v}_{kx} \,,
     #  with
-    #     \hat{v}_x = q_{xk_x}\,, k_x \in \arg\max_k q_{xk} \,.
+    #     \hat{v}_{kx} = q_{k x a_{kx}} \,, a_{kx} \in \arg\max_a q_{kax} \,.
     avg_rew_sk_: ndarray[float]  # (S, N)
+
+    # expected reward for not-pulling an arm `k` (i.e. playing `a_k = 0`) at state `s`
+    phi_sk_: ndarray[float]  # (S, N)
 
     def __repr__(self) -> str:
         return type(self).__name__ + f"(threshold={self.threshold})"
@@ -84,9 +87,9 @@ class UcbLcb(BasePolicy):
             raise NotImplementedError(type(env))
 
         # the expected reward at state `s` from arm `k` if it is not pulled (`a=0`)
-        #  `\phi_k(s, a) = \sum_x p_{nsax} r_{nsax}`
-        # XXX note transposed output dims, since `phi_sk_` is `(S, N,)`!
-        self.phi_sk_ = np.einsum("ksax,ksax->ask", env.kernels, env.rewards)[0]
+        #  `\phi_k(a=0, s) = \sum_x r_k(a=0, s, x) p_k(x | a=0, s)`
+        # XXX note the transposed output dims, since `phi_sk_` is `(S, N,)`!
+        self.phi_sk_ = np.einsum("kasx,kasx->ask", env.kernels, env.rewards)[0]
 
     def setup_impl(self, /, obs, act, rew, new, *, random: Generator = None):
         """Initialize the ucb-lcb state from the transition."""
@@ -97,7 +100,7 @@ class UcbLcb(BasePolicy):
         self.n_pulls_sk_ = np.zeros(shape, int)
         self.avg_rew_sk_ = np.zeros(shape, float)
 
-        # expected reward of arm `k` leaving state `s` under action `0`
+        # expected reward of arm `k` leaving state `s` under action `a_k = 0`
         self.phi_sk_ = np.zeros((self.n_states, self.n_arms_in_), float)
 
         return self
