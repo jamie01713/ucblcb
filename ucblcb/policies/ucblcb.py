@@ -8,15 +8,11 @@ from ..envs.mdp import MDP
 
 
 def lcb(N, T=None, *, C: float = 1.0):
-    r"""unsigned LCB term from [1]_ for :math:`N` samples
+    r"""unsigned LCB term for :math:`N` samples
 
     .. math::
 
         \sqrt{\frac{\log (2 + N)}{2 + N}}
-
-    References
-    ----------
-    .. [1] APA Citation Needed
     """
 
     Np1 = 1 + N  # XXX why `+1` here and on the line below?
