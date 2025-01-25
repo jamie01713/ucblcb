@@ -80,7 +80,7 @@ class UcbLcb(BasePolicy):
         self.threshold = threshold
 
     def sneak_peek(self, env, /) -> None:
-        """Brake open the black box and rummage in it for unfair advantage."""
+        """Break open the black box and rummage in it for unfair advantage."""
         # ideally, whatever we get a hold of here should be estimated from some
         #  sample collected burn-in period by standard means
         if not isinstance(env, MDP):
