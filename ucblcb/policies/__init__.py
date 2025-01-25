@@ -3,3 +3,4 @@
 from .base import BasePolicy, RandomSubsetPolicy
 from .ucblcb import UcbLcb
 from .whittle import Whittle
+from .wiql import WIQL
