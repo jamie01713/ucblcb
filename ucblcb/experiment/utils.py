@@ -198,3 +198,17 @@ def from_qualname(spec: str | type) -> type:
     # import from built-ins if no module was detected
     module, dot, name = qualname.rpartition(".")
     return getattr(import_module(module if dot else "builtins"), name)
+
+
+def populate(mod, /, *bases) -> tuple[type]:
+    """Enumerate all top-level classes that are derived from the given bases."""
+
+    classes = []
+    for x in dir(mod):
+        obj = getattr(mod, x)
+        # keep classes derived from any of hte bases, but not bases themselves
+        if isinstance(obj, type) and issubclass(obj, bases):
+            if obj not in bases:
+                classes.append(obj)
+
+    return classes
