@@ -107,6 +107,7 @@ class BasePolicy:
     n_arms_in_: int  # the number of arms to pick subsets from
 
     n_pulls_k_: ndarray[int]
+    n_samples_: ndarray[int]
     avg_rew_k_: ndarray[float]
 
     def __init__(
@@ -216,6 +217,7 @@ class BasePolicy:
     def setup_impl(self, /, obs, act, rew, new, *, random: Generator = None):
         # the base pocy tracks the number of times each arm has been interacted
         #  with and the average per-arm reward it yielded
+        self.n_samples_ = 0
         self.n_pulls_k_ = np.zeros(self.n_arms_in_, int)
         self.avg_rew_k_ = np.zeros(self.n_arms_in_, float)
 
@@ -236,9 +238,11 @@ class BasePolicy:
         #  and this zero is propagated through `.divide`, which is what we want
         np.divide(update_, self.n_pulls_k_, where=self.n_pulls_k_ > 0, out=update_)
         self.avg_rew_k_ += update_
-
         # XXX do we assume partially observed rewards, i.e. only for the arms
         #  for which `act != 0`?
+
+        # count the number of samples we have updated so far
+        self.n_samples_ += len(act)
         return self
 
     def uninitialized_decide_impl(self, random: Generator, /, obs):
