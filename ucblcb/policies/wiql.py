@@ -37,6 +37,11 @@ class WIQL(BasePolicy):
       is to select M arms. Our action-selection method ensures that an arm
       whose estimated benefit is higher is more likely to get selected.
 
+    Furthermore, the lines 5-10 of algorithm 1 of sec. 5 in [1]_ describe collection
+    of rewards :math:`r_k` (subscript is missing in [1]_) and next states :math:`x_k`
+    in a loop over arms :math:`k`. In fact, the Q-learning update makes no sense if
+    the collected reward :math:`r` is NOT per-arm.
+
     Therefore, WIQL maintains an independent Q-function approximation for each arm
     and learns them based on their individual :math:`(s_t, a_t, r_{t+1}, s_{t+1})`
     transitions.
@@ -51,9 +56,9 @@ class WIQL(BasePolicy):
     """
 
     n_actions: int = 2  # binary
-    alpha: float
+    alpha: float | None
     gamma: float
-    epsilon: float
+    zero_init: bool
 
     # attributes
     # \hat{q}_{aks}
@@ -70,20 +75,19 @@ class WIQL(BasePolicy):
         budget: int,
         n_states: int,
         /,
-        alpha: float,
         gamma: float,
-        epsilon: float = 0.05,
+        alpha: float | None = 0.5,
+        zero_init: bool = True,
         *,
         random: Generator = None,
     ) -> None:
         super().__init__(n_max_steps, budget, n_states)
 
-        assert isinstance(alpha, float) and 0 <= alpha <= 1
+        assert alpha is None or 0 <= alpha <= 1
         assert isinstance(gamma, float) and 0 <= gamma < 1
-        assert isinstance(epsilon, float) and 0 <= epsilon < 1
         self.alpha = alpha
         self.gamma = gamma
-        self.epsilon = epsilon
+        self.zero_init = zero_init
 
     def setup_impl(self, /, obs, act, rew, new, *, random: Generator = None):
         """Initialize the ucb-lcb state from the transition."""
@@ -107,7 +111,8 @@ class WIQL(BasePolicy):
 
         # `m_{aks}` the number of sample which had action `a` applied to arm `k`
         #  in state `s`
-        # XXX the `obs-act-rew-new` arrays have shape `(batch, N)`
+        # XXX the `obs-act-rew-new` arrays have shape `(batch, N)` and `batch` is
+        #  not necessarily one.
         # XXX strictly speaking in RL terms, our env has vector state space (vector
         #  `s \in S^N` indicating state `s_k` of arm `k`) and vector action space
         #  where `a \in [A]^N` is a vector of control signals applied to each arm:
@@ -132,10 +137,13 @@ class WIQL(BasePolicy):
         qval_jk = self.qval_aks_[act, idx, obs]
         np.add.at(grad_aks, (act, idx, obs), qval_jk - td_jk)
         np.divide(grad_aks, m_aks, where=m_aks > 0, out=grad_aks)
+        # XXX `grad_aks` is -ve td-error of arm `k` with action `a` in state `s`.
+        #  if `(s, a)` were not observed for arm `k` then it is zero
 
         # make a step in direction of reducing the td(0) error
-        # functional gradient descent: q \lefthookarrow q + \alpha \nabla_q L(q)
-        self.qval_aks_ -= self.alpha * grad_aks
+        # XXX Biswas et al. (2021) mention this schedule in the end of sec 5.
+        alpha = 1 / (self.n_aks_ + 1) if self.alpha is None else self.alpha  # (A, N, S)
+        self.qval_aks_ -= alpha * grad_aks
 
         return self
 
@@ -152,13 +160,15 @@ class WIQL(BasePolicy):
         n_samples, n_arms, *_ = np.shape(obs)  # XXX `...` below is `n_samples`
 
         # the estimated subsidy for not playing `a=1` for arm `k` in state `s`
-        m_ak = self.n_aks_[:, idx, obs]  # (A, ..., N)
         q_ak = self.qval_aks_[:, idx, obs]  # (A, ..., N)
+        q_0k, q_1k = q_ak[0], q_ak[1]
 
         # if an arm `k` has never been acted upon by `a` in state `s`, then the
         #  q-value estimate `q_k(s, a)` is undefined.
-        q_0k = np.where(m_ak[0] > 0, q_ak[0], -np.inf)
-        q_1k = np.where(m_ak[1] > 0, q_ak[1], np.inf)
+        if self.zero_init:
+            m_ak = self.n_aks_[:, idx, obs]  # (A, ..., N)
+            q_0k = np.where(m_ak[0] > 0, q_0k, -np.inf)
+            q_1k = np.where(m_ak[1] > 0, q_1k, np.inf)
 
         # prepare action vector using on the estimated advantages of playing `a_k = 1`
         #  for arm `k` in its current state `s_k`: the higher the advantage, then
@@ -172,5 +182,9 @@ class WIQL(BasePolicy):
         #  with probability `self.epsilon` (for \epsilon-greedy)
         subset_rnd = random_subset(random, n_arms, self.budget, size=n_samples)
 
-        is_random = random.uniform(size=(n_samples, 1)) < self.epsilon
+        # in [Biswas et al.; 2021) the number of interactions equals the number of
+        #  q-value updates since they use batch size = 1. here it is `self.n_samples_`
+        epsilon = n_arms / (n_arms + self.n_samples_)
+        is_random = random.uniform(size=(n_samples, 1)) < epsilon
+
         return np.where(is_random, subset_rnd, subset_lam)
