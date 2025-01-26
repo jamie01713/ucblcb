@@ -1,0 +1,182 @@
+"""Run experiment ype 1 on the given policy.
+"""
+
+import os
+import pickle
+import warnings
+
+from numpy.random import SeedSequence
+from functools import partial
+
+import matplotlib as mpl
+from matplotlib import pyplot as plt
+
+from ucblcb.policies.base import BasePolicy
+
+from ucblcb.envs.rmab import random_valid_binary_mdp
+from ucblcb.experiment import experiment1 as xp1
+
+from ucblcb.experiment.utils import from_qualname
+from ucblcb.experiment.plotting import (
+    plot_average_cumulative_reward,
+    plot_average_reward,
+)
+
+from itertools import product
+
+
+def generate_policies():
+    """Generate the policies to try out."""
+
+    # populate the dictionary of algorithms and parameters for them
+    specs = {
+        "ucblcb.policies.base.RandomSubsetPolicy": {},
+        # product of confidence interval incremental reward estimates with greedy policy
+        "ucblcb.policies.ucblcb.UcbLcb": {
+            "threshold": [0.1, 0.5, 0.9],  # assumes reward in `[0, 1]`
+        },
+        # whittle-index q-learning
+        "ucblcb.policies.wiql.WIQL": {
+            "gamma": [0.99],  # discount (was set to one in the original impl)
+            "alpha": [0.5],  # lr schedule
+        },
+        # optimal policy
+        "ucblcb.policies.whittle.Whittle": {
+            "gamma": [0.9],  # discount
+        },
+    }
+
+    # run the selected algorithms
+    for qn, grid in specs.items():
+        cls = from_qualname(qn)
+        assert issubclass(cls, BasePolicy)
+        # enumerate all hparam in the priduct
+        for values in product(*grid.values()):
+            # return a policy builder
+            yield partial(cls, **dict(zip(grid, values)))
+
+
+def main(
+    path: str,
+    *,
+    # the entropy for seeding the environments
+    entropy: int = 243799254704924441050048792905230269161,  # a value from numpy docs
+    # the total size of the mdp pool
+    n_population: int = 1000,
+    # the number of MDPs to be managed by the ramb
+    n_arms: int = 25,
+    # the allotted budget
+    n_budget: int = 7,
+    # the number of experiment replications
+    n_experiments: int = 100,
+    # the number of episodes each policy instance plays
+    n_episodes_per_experiment: int = 33,
+    # the number of instraction steps in each episode
+    n_steps_per_episode: int = 500,
+    **ignore,
+):
+    if ignore:
+        warnings.warn(repr(ignore), RuntimeWarning)
+
+    # create the main seed sequence
+    main = SeedSequence(entropy)
+
+    # ensure a path for the results
+    path = os.path.abspath(path)
+    os.makedirs(path, exist_ok=True)
+
+    # construct the filename tag
+    tag = "__".join(
+        [
+            f"P{n_population}",
+            f"n{n_arms}",
+            f"b{n_budget}",
+            f"H{n_steps_per_episode}",
+            f"L{n_episodes_per_experiment}",
+            f"E{n_experiments}",
+            f"{main.entropy:32X}",
+        ]
+    )
+
+    # run the experiment is not data is available
+    data_pkl = os.path.join(path, f"xp1all_data__{tag}.pkl")
+    if not os.path.isfile(data_pkl):
+        # get the pool of Markov processes
+        kernels, rewards = random_valid_binary_mdp(main, size=(n_population,))
+
+        # run the implemented policies
+        results = []
+        for Policy in generate_policies():
+            results.append(
+                xp1.run(
+                    *main.spawn(1),
+                    Policy,
+                    kernels,
+                    rewards,
+                    n_processes=n_arms,
+                    n_budget=n_budget,
+                    n_experiments=n_experiments,
+                    n_episodes_per_experiment=n_episodes_per_experiment,
+                    n_steps_per_episode=n_steps_per_episode,
+                )
+            )
+
+        # save the experiment data
+        with open(data_pkl, "wb") as pkl:
+            pickle.dump(results, pkl)
+
+    # load the experiment data
+    with open(data_pkl, "rb") as pkl:
+        results = pickle.load(pkl)
+
+    # save the pdf for the average cumulative reward
+    fig, ax = plt.subplots(1, 1, dpi=120, figsize=(7, 4))
+    with mpl.rc_context({"legend.fontsize": "x-small"}):
+        plot_average_cumulative_reward(results)
+
+    fig.savefig(os.path.join(path, f"xp1all_fig1__{tag}.pdf"))
+
+    # save the pdf for the smoothed average reward
+    fig, ax = plt.subplots(1, 1, dpi=120, figsize=(7, 4))
+    with mpl.rc_context({"legend.fontsize": "x-small"}):
+        plot_average_reward(results)
+
+    fig.savefig(os.path.join(path, f"xp1all_fig2__{tag}.pdf"))
+
+    return results
+
+
+if __name__ == "__main__":
+    # why not use pydantic and manage experiments via json?
+    import argparse
+
+    # we allow some limited config through the command line args
+    parser = argparse.ArgumentParser(
+        description="Run experiment one over all policies.", add_help=True
+    )
+    parser.register("type", "hexadecimal", lambda x: int(x, 16) if x else None)
+
+    # the policy and its hyperparameters
+    parser.add_argument("--path", type=str, default="./")
+
+    # state, action, and arm space sizes
+    parser.add_argument("--n_arms",                    "-N", type=int, default=100)
+
+    # the budget of arms
+    parser.add_argument("--n_budget",                  "-B", type=int, default=20)
+
+    # exepriment parameters and replications
+    parser.add_argument("--n_steps_per_episode",       "-H", type=int, default=20)
+    parser.add_argument("--n_episodes_per_experiment", "-T", type=int, default=500)
+    parser.add_argument("--n_experiments",             "-E", type=int, default=30)
+    parser.add_argument("--n_population",              "-P", type=int, default=100)
+
+    # seed
+    parser.add_argument("--entropy", required=False, type="hexadecimal", default=None)
+
+    # get the namespace with declared cli args, and a list of remaining argument strings
+    # https://docs.python.org/3/library/argparse.html#argparse.ArgumentParser.parse_known_args
+    args, _ = parser.parse_known_args()
+    print(repr(args))
+
+    results = main(**vars(args))  # noqa: F401
