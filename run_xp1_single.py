@@ -1,4 +1,4 @@
-"""Run experiment ype 1 on the given policy.
+"""Run experiment type 1 on the given policy.
 """
 
 import os
@@ -8,7 +8,6 @@ import warnings
 import json
 import numpy as np
 
-from scipy.special import softmax
 from numpy.random import default_rng, SeedSequence
 from functools import partial
 
@@ -16,6 +15,8 @@ import matplotlib as mpl
 from matplotlib import pyplot as plt
 
 from ucblcb.policies.base import BasePolicy
+
+from ucblcb.envs.mdp import random_mdp
 from ucblcb.experiment import experiment1 as xp1
 from ucblcb.experiment.utils import from_qualname
 
@@ -31,11 +32,10 @@ def main(
     # mdp specs
     n_states: int = 4,
     n_actions: int = 2,
-    temperature: float = 0.5,
     # the total size of the mdp pool
     n_population: int = 1000,
     # the number of MDPs to be managed by the ramb
-    n_processes: int = 25,
+    n_arms: int = 25,
     # the allotted budget
     n_budget: int = 7,
     # the number of experiment replications
@@ -46,7 +46,7 @@ def main(
     n_steps_per_episode: int = 500,
     **ignore,
 ):
-    if not ignore:
+    if ignore:
         warnings.warn(repr(ignore), RuntimeWarning)
 
     main = SeedSequence(entropy)
@@ -64,19 +64,7 @@ def main(
     random_ = default_rng(main)
 
     # get the pool of markov processes
-    kernels = softmax(
-        random_.normal(
-            size=(
-                n_population,
-                n_actions,
-                n_states,
-                n_states,
-            )
-        )
-        / temperature,
-        axis=-1,
-    )
-    rewards = random_.normal(size=(1, 1, 1, kernels.shape[3]))
+    kernels, rewards = random_mdp(random_, n_states, n_actions, size=(n_population,))
 
     # assemble a policy builder
     Policy = partial(cls, **(params if isinstance(params, dict) else {}))
@@ -87,7 +75,7 @@ def main(
         Policy,
         kernels,
         rewards,
-        n_processes=n_processes,
+        n_processes=n_arms,
         n_budget=n_budget,
         n_experiments=n_experiments,
         n_episodes_per_experiment=n_episodes_per_experiment,
@@ -146,21 +134,30 @@ if __name__ == "__main__":
     # the policy and its hyperparameters
     parser.add_argument("cls", type="qualname", default="ucblcb.policies.ucblcb.UcbLcb")
     parser.add_argument("--params", required=False, type="json", default="{}")
+
+    # state, action, and arm space sizes
+    parser.add_argument("--n_states",                  "-S", type=int, default=2)
+    parser.add_argument("--n_actions",                 "-A", type=int, default=2)
+    parser.add_argument("--n_arms",                    "-N", type=int, default=100)
+
+    # the budget of arms
+    parser.add_argument("--n_budget",                  "-B", type=int, default=20)
+
+    # exepriment parameters and replications
+    parser.add_argument("--n_steps_per_episode",       "-H", type=int, default=20)
+    parser.add_argument("--n_episodes_per_experiment", "-T", type=int, default=500)
+    parser.add_argument("--n_experiments",             "-E", type=int, default=30)
+    parser.add_argument("--n_population",              "-P", type=int, default=100)
+
+    # seed
     parser.add_argument("--entropy", required=False, type="hexadecimal", default=None)
 
+    # the path to dump the results and the figure
     parser.add_argument("--path", type=str, default="./")
-
-    parser.add_argument("--n_population",                    type=int, default=1000)
-    parser.add_argument("--n_states",                  "-S", type=int, default=5)
-    parser.add_argument("--n_actions",                 "-A", type=int, default=3)
-    parser.add_argument("--n_processes",               "-N", type=int, default=25)
-    parser.add_argument("--n_budget",                  "-B", type=int, default=7)
-    parser.add_argument("--n_experiments",             "-E", type=int, default=100)
-    parser.add_argument("--n_episodes_per_experiment", "-T", type=int, default=33)
-    parser.add_argument("--n_steps_per_episode",       "-H", type=int, default=500)
 
     # get the namespace with declared cli args, and a list of remaining argument strings
     # https://docs.python.org/3/library/argparse.html#argparse.ArgumentParser.parse_known_args
     args, _ = parser.parse_known_args()
+    print(repr(args))
 
-    pol_instance, results = main(temperature=0.5, **vars(args))  # noqa: F401
+    pol_instance, results = main(**vars(args))  # noqa: F401
