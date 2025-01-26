@@ -105,6 +105,9 @@ def run(
     for sq_pol_init, sq_env_init, sq_episodes in tqdm.tqdm(sq_experiment, ncols=60):
         # create a new policy
         pol = Creator(random=sq_pol_init[0])
+
+        # a shortcut access to the ground truth about an env, called at the start
+        #  of each episode
         policy_gains_unfair_advantage = sneak_peek(pol)
 
         # reuse the same seed sequence deterministic chaos in env

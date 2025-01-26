@@ -8,6 +8,7 @@ from importlib import import_module
 
 import numpy as np
 from functools import partial
+from scipy import signal
 
 from numpy import ndarray
 from numpy.random import default_rng, Generator, SeedSequence
@@ -212,3 +213,35 @@ def populate(mod, /, *bases) -> tuple[type]:
                 classes.append(obj)
 
     return classes
+
+
+def ewmmean(x: ndarray, /, alpha: float = 0.7, axis: int = -1) -> ndarray:
+    """Exponential smoothing of the values along the axis."""
+
+    # numerator and denominator for rational transfer function of the filter
+    b, a = np.r_[1.0 - alpha], np.r_[1.0, -alpha]
+    if axis is None:
+        x, axis = x.ravel(), 0
+
+    # `lfilter_zi` returns the multiplier for the initial conditions
+    zi = np.take(x, np.r_[0], axis=axis) * signal.lfilter_zi(b, a)
+
+    # `lfilter` returns `y_n` satisfying
+    #    a_0 y_n = \sum_{j \geq 0} b_j x_{n-j} - \sum_{k \geq 1} a_k y_{n - k}
+    y, zf = signal.lfilter(b, a, x, axis=axis, zi=zi)
+    return y
+
+
+def expandingmean(x: ndarray, /, axis: int = -1) -> ndarray:
+    """Expanding window average of the values along the axis."""
+
+    if axis is None:
+        return x.cumsum(None) / np.arange(1, 1 + x.size)
+
+    # prepare the denominator
+    axis = axis + np.ndim(x) if axis < 0 else axis
+    size = np.arange(1, 1 + x.shape[axis])
+    np.expand_dims(size, tuple(range(axis + 1, np.ndim(x))))
+
+    # compute the cumulative sum and return the mean
+    return np.cumsum(x, axis=axis) / size
