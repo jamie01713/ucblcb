@@ -43,7 +43,7 @@ ipython -i run_xp1_single.py --                \
     --n_population=100                         \
     --n_arms=100                               \
     --n_budget=20                              \
-    --n_experiments=30                         \
+    --n_experiments=31                         \
     --n_episodes_per_experiment=500            \
     --n_steps_per_episode=20
 
@@ -55,7 +55,7 @@ ipython -i run_xp1_single.py --                \
     --n_population=100                         \
     --n_arms=100                               \
     --n_budget=20                              \
-    --n_experiments=30                         \
+    --n_experiments=31                         \
     --n_episodes_per_experiment=500            \
     --n_steps_per_episode=20
 
@@ -67,7 +67,7 @@ ipython -i run_xp1_single.py --                \
     --n_population=100                         \
     --n_arms=100                               \
     --n_budget=20                              \
-    --n_experiments=30                         \
+    --n_experiments=31                         \
     --n_episodes_per_experiment=500            \
     --n_steps_per_episode=20
 
@@ -79,7 +79,18 @@ ipython -i run_xp1_single.py --                \
     --n_population=100                         \
     --n_arms=100                               \
     --n_budget=20                              \
-    --n_experiments=30                         \
+    --n_experiments=31                         \
     --n_episodes_per_experiment=500            \
     --n_steps_per_episode=20
+
+# run xp1 on all policies and build comparative plots
+ipython -i run_xp1.py --                       \
+    --entropy=B76A074C23C703767710E1D756F73AE9 \
+    --path='./results'                         \
+    --n_population=100                         \
+    --n_arms=100                               \
+    --n_budget=20                              \
+    --n_experiments=31                         \
+    --n_episodes_per_experiment=100            \
+    --n_steps_per_episode=100
 ```
