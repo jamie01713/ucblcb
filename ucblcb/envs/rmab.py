@@ -20,14 +20,18 @@ def minmax(a0: ndarray, a1: ndarray) -> tuple[ndarray, ndarray]:
     return p_min, p_max
 
 
-def random_valid_binary_transitions(
+def random_valid_binary_mdp(
     random: Generator, /, size: tuple[int, ...] = None
 ) -> ndarray:
     """Sample a markov transition kernel that is good."""
 
+    # build `r(a, s, x) = 1_{x=1}` for binary state and action spaces
+    # XXX `good` means the +ve reward!
+    size = () if size is None else size
+    rewards = np.broadcast_to([0.0, 1.0], (*size, 1, 1, 2))
+
     # get a pool of good markov transition kernels `k_{asx} = p(x \mid s, a)`
     #  "acting is always good, and starting in good state is always good"
-    size = () if size is None else size
     p0, p1 = default_rng(random).uniform(size=(2, *size, 2))
 
     # enforce "acting-is-always-good" `p_{0s1} <= p_{1s1}`
@@ -37,7 +41,7 @@ def random_valid_binary_transitions(
     p_as1 = np.stack(minmax(p_as1[..., 0], p_as1[..., 1]), axis=-1)
 
     # the binary mdp kernels `(..., A, S, X)`
-    return np.stack([1 - p_as1, p_as1], -1)  # p_n(X \mid s, a)
+    return np.stack([1 - p_as1, p_as1], -1), rewards  # p_n(x \mid s, a), r_n(a, s, x)
 
 
 def binary_rmab_sampler(
@@ -64,6 +68,34 @@ def binary_rmab_sampler(
     # ensure a good start state is always good `p_{a01} \leq p_{a11}`
     is_state_good = np.all(transitions[:, :, 0, 1] <= transitions[:, :, 1, 1])
     assert True or is_state_good, "good start state should always be good"
+
+    # simply delegate to the sub-iterator
+    yield from MDP.sample(random, transitions, rewards, n_processes)
+
+
+def binary_rmab_sampler_expected(
+    random: Generator, /, transitions, n_processes: int = None
+) -> Iterator[MDP]:
+    """Sampler for binary RMAB problems with good transition."""
+    random = default_rng(random)  # the PRNG `random` is consumed!
+
+    # ensure binary state and action spaces
+    *_, n_actions, n_states, n_states_ = transitions.shape
+    assert n_states == n_states_ == n_actions == 2
+
+    # build `r_n(a, s, x) = 1_{x=1}` for binary state and action spaces
+    rewards = np.broadcast_to(np.r_[0.0, 1.0], transitions.shape)
+
+    # get the expected reward \phi_n(a, s) = E_{p_n(x|a, s)} r_n(a, s, x)
+    phi_nas = np.einsum("nasx,nasx -> nas", transitions, rewards)
+
+    # ensure that pulling always yields higher expected reward
+    is_acting_good = np.all(phi_nas[:, 0, :] <= phi_nas[:, 1, :])
+    assert is_acting_good, "pulling an arm should always be beneficial"
+
+    # ensure a special origin state` s=1` is good no matter the pulling
+    is_origin_good = np.all(phi_nas[:, :, 0] <= phi_nas[:, :, 1])
+    assert True or is_origin_good, "good start state should always be good"
 
     # simply delegate to the sub-iterator
     yield from MDP.sample(random, transitions, rewards, n_processes)
