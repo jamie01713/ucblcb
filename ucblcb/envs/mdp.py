@@ -130,3 +130,18 @@ class MDP(Env):
 
             # build an env with a forked PRNG
             yield MDP(*random.spawn(1), kers, rews)
+
+
+def random_mdp(
+    random: Generator, /, n_states: int, n_actions: int, size: tuple[int, ...] = None
+) -> tuple[ndarray, ndarray]:
+
+    random = default_rng(random)
+    size = () if size is None else size
+
+    # get a pool of markov transition kernels `k_{asx} = p(x \mid s, a)`
+    kernels = random.uniform(size=(*size, n_actions, n_states, n_states))
+    kernels /= np.sum(kernels, axis=-1, keepdims=True)
+
+    # random rewards `r_{asx} = r_x`, i.e. a feedback for entering a state
+    return kernels, random.normal(size=(*size, 1, 1, n_states))

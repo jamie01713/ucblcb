@@ -2,11 +2,42 @@
 """
 
 import numpy as np
+from numpy import ndarray
 
 from typing import Iterator
 from numpy.random import default_rng, Generator
 
 from .mdp import MDP
+
+
+def minmax(a0: ndarray, a1: ndarray) -> tuple[ndarray, ndarray]:
+    """Return `min(a0, a1)` and `max(a0, a1)`"""
+
+    is_gt = a0 <= a1
+    p_min = np.where(is_gt, a0, a1)
+    p_max = np.where(is_gt, a1, a0)
+
+    return p_min, p_max
+
+
+def random_valid_binary_transitions(
+    random: Generator, /, size: tuple[int, ...] = None
+) -> ndarray:
+    """Sample a markov transition kernel that is good."""
+
+    # get a pool of good markov transition kernels `k_{asx} = p(x \mid s, a)`
+    #  "acting is always good, and starting in good state is always good"
+    size = () if size is None else size
+    p0, p1 = default_rng(random).uniform(size=(2, *size, 2))
+
+    # enforce "acting-is-always-good" `p_{0s1} <= p_{1s1}`
+    p_as1 = np.stack(minmax(p0, p1), axis=-2)
+
+    # ensorce "good-origin-is-good" `p_{a01} <= p_{a11}`
+    p_as1 = np.stack(minmax(p_as1[..., 0], p_as1[..., 1]), axis=-1)
+
+    # the binary mdp kernels `(..., A, S, X)`
+    return np.stack([1 - p_as1, p_as1], -1)  # p_n(X \mid s, a)
 
 
 def binary_rmab_sampler(
@@ -20,15 +51,17 @@ def binary_rmab_sampler(
     assert n_states == n_states_ == n_actions == 2, transitions.shape
 
     # build `r(a, s, x) = 1_{x=1}` for binary state and action spaces
+    # XXX `r_{asx} = r_x`, i.e. a feedback for entering a state
+    # XXX `good` means the +ve reward!
     rewards = np.r_[0.0, 1.0].reshape(1, 1, n_states)  # see `BatchedMDPSimulator`
 
-    # ensure acting is always good (good state is ONE)
-    # XXX `p_n(x=1 | s, a=0) \leq p_n(x=1 | s, a=1)` (`x=1` is special because of
-    #  how the rewards are defined).
+    # ensure acting is always good (good state is ONE) `p_{0s1} \leq p_{1s1}`
+    # XXX for `p_{asx} = p(x | s, a)` we ensure `p_{0s1} \leq p_{1s1}` since `x=1`
+    #  is special, because of how the rewards are defined).
     is_acting_good = np.all(transitions[:, 0, :, 1] <= transitions[:, 1, :, 1])
     assert True or is_acting_good, "acting should always be good"
 
-    # ensure a good start state is always good
+    # ensure a good start state is always good `p_{a01} \leq p_{a11}`
     is_state_good = np.all(transitions[:, :, 0, 1] <= transitions[:, :, 1, 1])
     assert True or is_state_good, "good start state should always be good"
 
