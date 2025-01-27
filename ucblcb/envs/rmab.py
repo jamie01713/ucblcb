@@ -41,11 +41,15 @@ def random_valid_binary_mdp(
 
     # enforce "acting-is-always-good" `p_{0s1} <= p_{1s1}`
     if good_to_act:
-        p_as1 = np.stack(minmax(p0, p1), axis=-2)
+        p0, p1 = minmax(p0, p1)
+
+    p_as1 = np.stack((p0, p1), axis=-2)
 
     # ensorce "good-origin-is-good" `p_{a01} <= p_{a11}`
     if good_origin:
-        p_as1 = np.stack(minmax(p_as1[..., 0], p_as1[..., 1]), axis=-1)
+        p0, p1 = minmax(p_as1[..., 0], p_as1[..., 1])
+
+    p_as1 = np.stack((p0, p1), axis=-1)
 
     # the binary mdp kernels `(..., A, S, X)`
     return np.stack([1 - p_as1, p_as1], -1), rewards  # p_n(x \mid s, a), r_n(a, s, x)
