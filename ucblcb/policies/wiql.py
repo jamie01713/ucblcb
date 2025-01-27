@@ -67,7 +67,8 @@ class WIQL(BasePolicy):
     n_aks_: ndarray[int]  # (A, N, S)
 
     def __repr__(self) -> str:
-        return type(self).__name__ + f"(alpha={self.alpha}, gamma={self.gamma})"
+        parstr = f"($\\alpha$={self.alpha}, $\\gamma$={self.gamma})"
+        return type(self).__name__ + parstr
 
     def __init__(
         self,
