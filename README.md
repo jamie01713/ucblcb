@@ -32,6 +32,17 @@ micromamba create -n ucblcb                    \
 
 ## Running experiments
 
+The following command runs the experiments declared in `run_xp1all.sh`, which sweeps over several settings of the budget of arms, that the policy is allowed to interact with on every step.
+
+```bash
+# from the root of the repo
+micromamba run -n ucblcb ./run_xp1all.sh
+```
+
+## Experiments with individual policies
+
+These experiments should be run when the `ucblcb` environment has been activated, which can be achieved by running `micromamba activate ucblcb` in a terminal session.
+
 ```bash
 # python main.py -N 10 -T 50 -B 3 -E 1
 # python main.py -N 100 -T 500 -B 20 -E 30
@@ -82,7 +93,11 @@ ipython -i run_xp1_single.py --                \
     --n_experiments=31                         \
     --n_episodes_per_experiment=500            \
     --n_steps_per_episode=20
+```
 
+Below are some other random experiments:
+
+```bash
 # run xp1 on all policies and build comparative plots
 ipython -i run_xp1.py --                       \
     --entropy=B76A074C23C703767710E1D756F73AE9 \

@@ -36,9 +36,7 @@ def plot_one_average_cumulative_reward(
     return ax
 
 
-def plot_average_cumulative_reward(
-    results, *, ax=None,
-) -> plt.Axes:
+def plot_average_cumulative_reward(results, *, ax=None) -> plt.Axes:
     """Plot the `average cumulative multi-episodic reward` for a list of results."""
     ax = plt.gca() if ax is None else ax
 
@@ -46,9 +44,7 @@ def plot_average_cumulative_reward(
         plot_one_average_cumulative_reward(res, C=0, ax=ax)
 
     # add all the aesthetics
-    ax.set_title(
-        "N={n_processes} B={n_budget} E={n_experiments}".format_map(res)
-    )
+    ax.set_title("N={n_processes} B={n_budget} E={n_experiments}".format_map(res))
     ax.set_xlabel(
         "step $t$ ({n_episodes_per_experiment} episodes "
         "x {n_steps_per_episode} steps)".format_map(res)
@@ -91,9 +87,7 @@ def plot_one_average_reward(
     return ax
 
 
-def plot_average_reward(
-    results, *, alpha: float = 0.7, ax=None,
-) -> plt.Axes:
+def plot_average_reward(results, *, alpha: float = 0.7, ax=None) -> plt.Axes:
     """Plot the `average smoothed multi-episodic reward` for a list of results."""
     # higher alpha means less smoothing
     assert 0 <= alpha < 1, alpha
@@ -103,14 +97,12 @@ def plot_average_reward(
         plot_one_average_reward(res, alpha=alpha, C=0, ax=ax)
 
     # add all the aesthetics
-    ax.set_title(
-        "N={n_processes} B={n_budget} E={n_experiments}".format_map(res)
-    )
+    ax.set_title("N={n_processes} B={n_budget} E={n_experiments}".format_map(res))
     ax.set_xlabel(
         "step $t$ ({n_episodes_per_experiment} episodes "
         "x {n_steps_per_episode} steps)".format_map(res)
     )
-    ax.set_ylabel(fr"Average reward (ewm $\alpha={alpha}$)")
+    ax.set_ylabel(rf"Average reward (ewm $\alpha={alpha}$)")
     ax.legend(loc="lower right")
 
     return ax
