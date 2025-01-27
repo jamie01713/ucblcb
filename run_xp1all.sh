@@ -5,11 +5,23 @@ n_episodes_per_experiment=1
 n_steps_per_episode=500
 target=./results
 
+# grid (whitespace separated strings, or '' for empty)
 n_budgets="5 10 15 20"
 b_good_origin_flags="--no-good-origin ''"
 
+# the master entropy of the entire suite of experiments (leave empty for system)
 # entropy=
 entropy=B76A074C23C703767710E1D756F73AE9
+
+# in case we wan to run a subset of experiments (setting overides may overwrite
+#  cached results in existing $target folders; set to 'null' for defaults)
+spec_override='null'
+# spec_override='{
+#     "ucblcb.policies.base.RandomSubsetPolicy": {},
+#     "ucblcb.policies.ucblcb.UcbLcb": {"threshold": [0.1, 0.5, 0.9]},
+#     "ucblcb.policies.wiql.WIQL": {"gamma": [0.99], "alpha": [0.5]},
+#     "ucblcb.policies.whittle.Whittle": {"gamma": [0.99]}
+# }'
 
 # budgets
 for n_budget in $n_budgets; do
@@ -23,6 +35,7 @@ for n_budget in $n_budgets; do
             --n_budget=$n_budget                                     \
             --n_experiments=$n_experiments                           \
             --n_episodes_per_experiment=$n_episodes_per_experiment   \
-            --n_steps_per_episode=$n_steps_per_episode
+            --n_steps_per_episode=$n_steps_per_episode               \
+            --override="${spec_override}"
     done
 done

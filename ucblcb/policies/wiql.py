@@ -84,10 +84,16 @@ class WIQL(BasePolicy):
     ) -> None:
         super().__init__(n_max_steps, budget, n_states)
 
+        # the lerarning rate (None for the schedule from the paper)
         assert alpha is None or 0 <= alpha <= 1
-        assert isinstance(gamma, float) and 0 <= gamma < 1
         self.alpha = alpha
+
+        # we allow unit \gamma contrary to the common inf-horizon discounted
+        #  q-learning setup.
+        assert isinstance(gamma, float) and 0 <= gamma <= 1
         self.gamma = gamma
+
+        # the zero-init as indicated in algorithm 1 of [1]_
         self.zero_init = zero_init
 
     def setup_impl(self, /, obs, act, rew, new, *, random: Generator = None):

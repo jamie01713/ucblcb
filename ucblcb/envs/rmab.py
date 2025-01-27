@@ -46,8 +46,9 @@ def random_valid_binary_mdp(
     p_as1 = np.stack((p0, p1), axis=-2)
 
     # ensorce "good-origin-is-good" `p_{a01} <= p_{a11}`
+    p0, p1 = p_as1[..., 0], p_as1[..., 1]
     if good_origin:
-        p0, p1 = minmax(p_as1[..., 0], p_as1[..., 1])
+        p0, p1 = minmax(p0, p1)
 
     p_as1 = np.stack((p0, p1), axis=-1)
 

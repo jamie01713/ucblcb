@@ -3,6 +3,7 @@
 
 import os
 import pickle
+import json
 import warnings
 from copy import deepcopy
 
@@ -26,32 +27,35 @@ from ucblcb.experiment.plotting import (
 from itertools import product
 
 
-def generate_policies():
-    """Generate the policies to try out."""
+# populate the dictionary of algorithms and parameters for them
+specs = {
+    "ucblcb.policies.base.RandomSubsetPolicy": {},
+    # product of confidence interval incremental reward estimates with greedy policy
+    "ucblcb.policies.ucblcb.UcbLcb": {
+        "threshold": [0.1, 0.5, 0.9],  # assumes reward in `[0, 1]`
+        # "threshold": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9],  # assumes reward in `[0, 1]`
+    },
+    # whittle-index q-learning
+    "ucblcb.policies.wiql.WIQL": {
+        "gamma": [0.99],  # discount (was set to one in the original impl)
+        "alpha": [0.5],  # lr schedule
+    },
+    # optimal policy
+    "ucblcb.policies.whittle.Whittle": {
+        "gamma": [0.99],  # discount (the closer to one, the slower the VI!)
+    },
+}
 
-    # populate the dictionary of algorithms and parameters for them
-    specs = {
-        "ucblcb.policies.base.RandomSubsetPolicy": {},
-        # product of confidence interval incremental reward estimates with greedy policy
-        "ucblcb.policies.ucblcb.UcbLcb": {
-            "threshold": [0.1, 0.5, 0.9],  # assumes reward in `[0, 1]`
-            # "threshold": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9],  # assumes reward in `[0, 1]`
-        },
-        # whittle-index q-learning
-        "ucblcb.policies.wiql.WIQL": {
-            "gamma": [0.99],  # discount (was set to one in the original impl)
-            "alpha": [0.5],  # lr schedule
-        },
-        # optimal policy
-        "ucblcb.policies.whittle.Whittle": {
-            "gamma": [0.99],  # discount (the closer to one, the slower the VI!)
-        },
-    }
+
+def generate_policies(specs: dict):
+    """Generate the policies to try out."""
 
     # run the selected algorithms
     for qn, grid in specs.items():
         cls = from_qualname(qn)
         assert issubclass(cls, BasePolicy)
+        assert all(isinstance(x, (list, tuple)) for x in grid.values())
+
         # enumerate all hparam in the priduct
         for values in product(*grid.values()):
             # return a policy builder
@@ -78,10 +82,17 @@ def main(
     # properties of binary MDPs' transitions
     no_good_to_act: bool = True,
     no_good_origin: bool = True,
+    # policies to run the experiment on (see `specs`)
+    override: dict = None,
     **ignore,
 ):
     if ignore:
         warnings.warn(repr(ignore), RuntimeWarning)
+
+    # handle policy spec overrides
+    if override is not None and not isinstance(override, dict):
+        warnings.warn(repr(override), RuntimeWarning)
+    override = override if isinstance(override, dict) else specs
 
     # create the main seed sequence
     main = SeedSequence(entropy)
@@ -107,7 +118,7 @@ def main(
 
     # run the experiment is not data is available
     data_pkl = os.path.join(path, f"xp1all_data__{tag}.pkl")
-    if not os.path.isfile(data_pkl):
+    if not os.path.isfile(data_pkl) or override is not specs:
         # one seed for the MDP population, another for the experiment
         sq_pop, sq_exp = main.spawn(2)
 
@@ -121,7 +132,7 @@ def main(
 
         # run the implemented policies
         results = []
-        for Policy in generate_policies():
+        for Policy in generate_policies(override):
             results.append(
                 xp1.run(
                     # each experiment uses the exact same seed sequence
@@ -172,6 +183,7 @@ if __name__ == "__main__":
         description="Run experiment one over all policies.", add_help=True
     )
     parser.register("type", "hexadecimal", lambda x: int(x, 16) if x else None)
+    parser.register("type", "json", json.loads)
 
     # the policy and its hyperparameters
     parser.add_argument(
@@ -242,6 +254,9 @@ if __name__ == "__main__":
         action="store_true",
         help="enforce good-origin peroperty of MDPs",
     )
+
+    # override policy specs
+    parser.add_argument("--override", required=False, type="json", default="null")
 
     # seed
     parser.add_argument(
