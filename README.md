@@ -93,4 +93,34 @@ ipython -i run_xp1.py --                       \
     --n_experiments=31                         \
     --n_episodes_per_experiment=100            \
     --n_steps_per_episode=100
+
+ipython -i run_xp1.py --                       \
+    --entropy=B76A074C23C703767710E1D756F73AE9 \
+    --path='./results'                         \
+    --n_population=100                         \
+    --n_arms=50                                \
+    --n_budget=20                              \
+    --n_experiments=31                         \
+    --n_episodes_per_experiment=10             \
+    --n_steps_per_episode=1000
+
+ipython -i run_xp1.py --                       \
+    --entropy=B76A074C23C703767710E1D756F73AE9 \
+    --path='./results'                         \
+    --n_population=100                         \
+    --n_arms=50                                \
+    --n_budget=20                              \
+    --n_experiments=31                         \
+    --n_episodes_per_experiment=500            \
+    --n_steps_per_episode=20
+
+ipython -i run_xp1.py --                       \
+    --entropy=B76A074C23C703767710E1D756F73AE9 \
+    --path='./results'                         \
+    --n_population=100                         \
+    --n_arms=50                                \
+    --n_budget=20                              \
+    --n_experiments=501                        \
+    --n_episodes_per_experiment=20             \
+    --n_steps_per_episode=500
 ```
