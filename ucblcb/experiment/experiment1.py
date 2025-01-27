@@ -12,7 +12,7 @@ from collections.abc import Callable
 from ..envs import MDP
 from ..policies.base import BasePolicy
 from ..envs.base import Env
-from .utils import sq_spawn, sneak_peek, snapshot_git, episode as play
+from .utils import sq_spawn, sneak_peek, snapshot_git, episode
 
 
 def pseudocode() -> None:
@@ -29,26 +29,28 @@ def pseudocode() -> None:
     :math:`r_{t+1}` is used to assign credit to past actions :math:`(a_s)_{s \leq t}`.
     """
 
-    # `experiment` is a collection of series to be played with DIFFERENT policies,
-    #  and `series` is a list of environments to play with the same policy.
-    experiment: list[tuple[list[Env], Callable[[], BasePolicy]]] = []
+    # `experiment` is a collection of environments to be played with independent
+    #  instance of the same policy, and each environment is played for multiple
+    #  eposodes
+    experiment: list[Env] = []
     n_episodes: int = ...
+    policy_factory: type = ...  # policy factory
 
     # experiment loop (with pre-seeded envs in episodes)
-    for env, Player in experiment:
-        pol = Player()
-
-        # let the policy rummage through the env for an oracle
-        pol.peek(env)
-
-        # series of episodes loop
+    for env in experiment:
         h, k = [...], 0
-        h[0] = pol.reset()
+
+        # let the policy rummage through the env for an oracle and init the policy's
+        #  "externalized" state
+        pol = policy_factory()
+        h[0] = pol.init_with_peek(env)
+
+        # multi-episodic rollout loop
         for _ in range(n_episodes):
             # per-episode loop
             x, r, a, t = [...], [...], [...], 0
-            x[0], done = env.reset(), False
-            # XXX unlike the original impl., we keep `r[0]` undefined!
+            x[0], done = env.reset(), False  # env "externalized" state
+            # XXX `r[0]` is undefined!
             while not done:
                 # pol: (h_k, x_t) -->> a_t
                 a[t] = pol.decide(h[k], x[t])
@@ -56,13 +58,16 @@ def pseudocode() -> None:
                 # env: (x_t, a_t) -->> (x_{t+1}, r_{t+1})
                 x[t + 1], r[t + 1], done = env.step(x[t], a[t])
 
+                # report (x[t], a[t], r[t + 1], x[t + 1]) to an analyzer
+                pass
+
                 # pol: (h_k, x_t, a_t, r_{t+1}, x_{t+1}) -->> h_{k+1}
                 h[k + 1] = pol.update(h[k], x[t], a[t], r[t + 1], x[t + 1])
 
-                # env's within-episode steps
+                # env's within-episode step counter
                 t += 1
 
-                # policy's lifetime spanning acorss multiple episodes
+                # policy's clock spans acorss multiple episodes
                 k += 1
 
 
@@ -118,7 +123,7 @@ def run(
         episode_rewards, walltimes = [], [monotonic()]
         for sq in sq_episodes:
             # the trace of rewards gained during the episode
-            episode_rewards.append(play(sq, env, pol, n_steps_per_episode))
+            episode_rewards.append(episode(sq, env, pol, n_steps_per_episode))
             walltimes.append(monotonic())
 
         # track whatever the episode runner yielded and per-episode time measurements
