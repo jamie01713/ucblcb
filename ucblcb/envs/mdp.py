@@ -108,6 +108,7 @@ class MDP(Env):
         rewards,
         *,
         n_processes: int = None,
+        shuffle: bool = True,
     ) -> Iterator["MDP"]:
         """Create instances of batched MDP by sampling from the kernel-reward pairs."""
 
@@ -118,7 +119,7 @@ class MDP(Env):
         n_processes = min(n_population, n_processes)
 
         # sub-sample a cohort, or shuffle within population
-        draw = Generator.permutation
+        draw = Generator.permutation if shuffle else (lambda _, m: np.arange(m))
         if n_population > n_processes:
             draw = partial(Generator.choice, size=n_processes, replace=False)
 
