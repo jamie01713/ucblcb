@@ -472,7 +472,7 @@ class Whittle(BasePolicy):
     value_ks_: ndarray[float]  # (N, S)
 
     def __repr__(self) -> str:
-        return type(self).__name__ + f"(gamma={self.gamma})"
+        return type(self).__name__ + f"($\\gamma$={self.gamma})"
 
     def __init__(
         self,

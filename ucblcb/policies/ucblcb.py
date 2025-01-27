@@ -62,7 +62,7 @@ class UcbLcb(BasePolicy):
     phi_sk_: ndarray[float]  # (S, N)
 
     def __repr__(self) -> str:
-        return type(self).__name__ + f"(threshold={self.threshold})"
+        return type(self).__name__ + f"($\\tau$={self.threshold})"
 
     def __init__(
         self,
