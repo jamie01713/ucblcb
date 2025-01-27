@@ -221,6 +221,7 @@ def ewmmean(x: ndarray, /, alpha: float = 0.7, axis: int = -1) -> ndarray:
     """Exponential smoothing of the values along the axis."""
 
     # numerator and denominator for rational transfer function of the filter
+    # y[n] = alpha * y[n-1] + (1 - alpha) * x[n]
     b, a = np.r_[1.0 - alpha], np.r_[1.0, -alpha]
     if axis is None:
         x, axis = x.ravel(), 0
