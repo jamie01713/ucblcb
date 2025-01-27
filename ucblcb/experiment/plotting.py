@@ -60,7 +60,7 @@ def plot_average_cumulative_reward(
 
 
 def plot_one_average_reward(
-    res, color=None, alpha=0.99, /, C=1.96, *, ax=None
+    res, color=None, /, alpha=0.99, C=1.96, *, ax=None
 ) -> plt.Axes:
     """Plot the average reward across multiple episodes."""
 
@@ -92,13 +92,15 @@ def plot_one_average_reward(
 
 
 def plot_average_reward(
-    results, *, ax=None,
+    results, *, alpha: float = 0.7, ax=None,
 ) -> plt.Axes:
     """Plot the `average smoothed multi-episodic reward` for a list of results."""
-    ax = plt.gca() if ax is None else ax
+    # higher alpha means less smoothing
+    assert 0 <= alpha < 1, alpha
 
+    ax = plt.gca() if ax is None else ax
     for pol, res in results:
-        plot_one_average_reward(res, C=0, ax=ax)
+        plot_one_average_reward(res, alpha=alpha, C=0, ax=ax)
 
     # add all the aesthetics
     ax.set_title(
@@ -108,7 +110,7 @@ def plot_average_reward(
         "step $t$ ({n_episodes_per_experiment} episodes "
         "x {n_steps_per_episode} steps)".format_map(res)
     )
-    ax.set_ylabel("Average reward")
+    ax.set_ylabel(r"Average reward (ewm $\alpha={alpha}$)")
     ax.legend(loc="lower right")
 
     return ax
