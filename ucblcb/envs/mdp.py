@@ -6,9 +6,9 @@ import numpy as np
 from numpy import ndarray
 
 from functools import partial
-from numpy.random import default_rng, Generator
+from numpy.random import default_rng, Generator, SeedSequence
 
-from typing import Iterator
+from typing import Iterator, Iterable
 from .base import State, Action, Observation, Reward
 
 from .base import Env
@@ -100,15 +100,16 @@ class MDP(Env):
         return kers / np.sum(kers, axis=-1, keepdims=True), rews
 
     @classmethod
-    def sample(
-        cls, random: Generator, /, kernels, rewards, *, n_processes: int = None
+    def sampler(
+        cls,
+        seedseqs: Iterable[SeedSequence],
+        /,
+        kernels,
+        rewards,
+        *,
+        n_processes: int = None,
     ) -> Iterator["MDP"]:
-        """Create instances of batched MDP by sampling from provided kernel-reward pairs."""
-
-        random = default_rng(random)  # the PRNG `random` is consumed!
-
-        # check kernel-reward pair consistency
-        kernels, rewards = cls.validate(kernels, rewards)
+        """Create instances of batched MDP by sampling from the kernel-reward pairs."""
 
         # adjust the number of processes
         n_population = len(kernels)
@@ -117,19 +118,39 @@ class MDP(Env):
         n_processes = min(n_population, n_processes)
 
         # sub-sample a cohort, or shuffle within population
-        get_sample = random.permutation
+        draw = Generator.permutation
         if n_population > n_processes:
-            get_sample = partial(random.choice, size=n_processes, replace=False)
+            draw = partial(Generator.choice, size=n_processes, replace=False)
+
+        # check kernel-reward pair consistency
+        kernels, rewards = cls.validate(kernels, rewards)
+
+        # loop over the seeds in the seed sequence and produce and environment
+        for random in map(default_rng, seedseqs):
+            # the PRNG `random` is consumed for sampling the environment's processes
+            #  and then gets stolen by the env iteself for its own consumption
+            jx = draw(random, n_population)
+
+            # give up this RPGN to the MD for consumption
+            yield MDP(random, np.take(kernels, jx, axis=0), np.take(rewards, jx, axis=0))
+
+    @classmethod
+    def sample(
+        cls,
+        random: SeedSequence | Generator,
+        /,
+        kernels,
+        rewards,
+        *,
+        n_processes: int = None,
+    ) -> Iterator["MDP"]:
+        """Sample MDP env instances from the given population."""
+
+        random = default_rng(random)  # the PRNG `random` is consumed!
 
         # perpetually draw samples of MDPs from the same population
-        while True:
-            # sub-sample the MDPs
-            indices = get_sample(n_population)
-            kers = np.take(kernels, indices, axis=0)
-            rews = np.take(rewards, indices, axis=0)
-
-            # build an env with a forked PRNG
-            yield MDP(*random.spawn(1), kers, rews)
+        stream = iter(lambda: random.spawn(1)[0], None)
+        yield from cls.sampler(stream, kernels, rewards, n_processes=n_processes)
 
 
 def random_mdp(
