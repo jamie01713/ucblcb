@@ -110,7 +110,7 @@ def plot_average_reward(
         "step $t$ ({n_episodes_per_experiment} episodes "
         "x {n_steps_per_episode} steps)".format_map(res)
     )
-    ax.set_ylabel(r"Average reward (ewm $\alpha={alpha}$)")
+    ax.set_ylabel(fr"Average reward (ewm $\alpha={alpha}$)")
     ax.legend(loc="lower right")
 
     return ax
