@@ -101,6 +101,8 @@ def run(
     # per experiment loop
     history = []
     for env, sq_pol in zip(envs, tqdm.tqdm(sqs_pol, ncols=60)):
+        # print(sq_pol, default_rng(sq_pol).uniform())  # XXX is chaos deterministic?
+
         # seeds for the policy: one for policy's init to consume, and the rest for
         #  the policy's randomness during its multi-episode rollout in the env
         sq_init, *sq_episodes = sq_pol.spawn(1 + n_episodes_per_experiment)
