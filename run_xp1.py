@@ -34,6 +34,7 @@ def generate_policies():
         # product of confidence interval incremental reward estimates with greedy policy
         "ucblcb.policies.ucblcb.UcbLcb": {
             "threshold": [0.1, 0.5, 0.9],  # assumes reward in `[0, 1]`
+            # "threshold": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9],  # assumes reward in `[0, 1]`
         },
         # whittle-index q-learning
         "ucblcb.policies.wiql.WIQL": {
@@ -73,6 +74,9 @@ def main(
     n_episodes_per_experiment: int = 33,
     # the number of instraction steps in each episode
     n_steps_per_episode: int = 500,
+    # properties of binary MDPs' transitions
+    good_to_act: bool = True,
+    good_origin: bool = True,
     **ignore,
 ):
     if ignore:
@@ -101,15 +105,23 @@ def main(
     # run the experiment is not data is available
     data_pkl = os.path.join(path, f"xp1all_data__{tag}.pkl")
     if not os.path.isfile(data_pkl):
+        # one seed for the MDP population, another for the experiment
+        sq_pop, sq_exp = main.spawn(2)
+
         # get the pool of Markov processes
-        kernels, rewards = random_valid_binary_mdp(main, size=(n_population,))
+        kernels, rewards = random_valid_binary_mdp(
+            sq_pop,
+            size=(n_population,),
+            good_to_act=good_to_act,
+            good_origin=good_origin,
+        )
 
         # run the implemented policies
         results = []
         for Policy in generate_policies():
             results.append(
                 xp1.run(
-                    *main.spawn(1),
+                    sq_exp,
                     Policy,
                     kernels,
                     rewards,
@@ -204,12 +216,28 @@ if __name__ == "__main__":
         default=30,
         help="The total number of independent replications to run",
     )
+
+    # diversity and properties of the MDPs
     parser.add_argument(
         "--n_population",
         "-P",
         type=int,
         default=100,
         help="The size of pool of MDP arms from which environment are sampled",
+    )
+    parser.add_argument(
+        "--good-to-act",
+        required=False,
+        action="store_true",
+        default=True,
+        help="enforce good-to-act peroperty of MDPs",
+    )
+    parser.add_argument(
+        "--good-origin",
+        required=False,
+        action="store_true",
+        default=True,
+        help="enforce good-origin peroperty of MDPs",
     )
 
     # seed

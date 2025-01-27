@@ -21,7 +21,12 @@ def minmax(a0: ndarray, a1: ndarray) -> tuple[ndarray, ndarray]:
 
 
 def random_valid_binary_mdp(
-    random: Generator, /, size: tuple[int, ...] = None
+    random: Generator,
+    /,
+    size: tuple[int, ...] = None,
+    *,
+    good_to_act: bool = True,
+    good_origin: bool = True,
 ) -> ndarray:
     """Sample a markov transition kernel that is good."""
 
@@ -35,10 +40,12 @@ def random_valid_binary_mdp(
     p0, p1 = default_rng(random).uniform(size=(2, *size, 2))
 
     # enforce "acting-is-always-good" `p_{0s1} <= p_{1s1}`
-    p_as1 = np.stack(minmax(p0, p1), axis=-2)
+    if good_to_act:
+        p_as1 = np.stack(minmax(p0, p1), axis=-2)
 
     # ensorce "good-origin-is-good" `p_{a01} <= p_{a11}`
-    p_as1 = np.stack(minmax(p_as1[..., 0], p_as1[..., 1]), axis=-1)
+    if good_origin:
+        p_as1 = np.stack(minmax(p_as1[..., 0], p_as1[..., 1]), axis=-1)
 
     # the binary mdp kernels `(..., A, S, X)`
     return np.stack([1 - p_as1, p_as1], -1), rewards  # p_n(x \mid s, a), r_n(a, s, x)
@@ -48,6 +55,8 @@ def binary_rmab_sampler(
     random: Generator, /, transitions, n_processes: int = None
 ) -> Iterator[MDP]:
     """Sampler for binary RMAB problems with good transition."""
+    raise RuntimeError("do not use")
+
     random = default_rng(random)  # the PRNG `random` is consumed!
 
     # ensure binary state and action spaces
@@ -77,6 +86,8 @@ def binary_rmab_sampler_expected(
     random: Generator, /, transitions, n_processes: int = None
 ) -> Iterator[MDP]:
     """Sampler for binary RMAB problems with good transition."""
+    raise RuntimeError("do not use")
+
     random = default_rng(random)  # the PRNG `random` is consumed!
 
     # ensure binary state and action spaces
