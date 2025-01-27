@@ -64,6 +64,7 @@ def generate_policies(specs: dict):
 
 def main(
     path: str,
+    prefix: str = "",
     *,
     # the entropy for seeding the environments
     entropy: int = 243799254704924441050048792905230269161,  # a value from numpy docs
@@ -88,6 +89,9 @@ def main(
 ):
     if ignore:
         warnings.warn(repr(ignore), RuntimeWarning)
+
+    # the name of the experiment
+    xp1all = "xp1all" + ("_" if prefix else "") + prefix
 
     # handle policy spec overrides
     if override is not None and not isinstance(override, dict):
@@ -117,7 +121,7 @@ def main(
     )
 
     # run the experiment is not data is available
-    data_pkl = os.path.join(path, f"xp1all_data__{tag}.pkl")
+    data_pkl = os.path.join(path, f"{xp1all}_data__{tag}.pkl")
     if not os.path.isfile(data_pkl) or override is not specs:
         # one seed for the MDP population, another for the experiment
         sq_pop, sq_exp = main.spawn(2)
@@ -162,14 +166,14 @@ def main(
     with mpl.rc_context({"legend.fontsize": "x-small"}):
         plot_average_cumulative_reward(results)
 
-    fig.savefig(os.path.join(path, f"xp1all_fig1__{tag}.pdf"))
+    fig.savefig(os.path.join(path, f"{xp1all}_fig1__{tag}.pdf"))
 
     # save the pdf for the smoothed average reward
     fig, ax = plt.subplots(1, 1, dpi=120, figsize=(7, 4))
     with mpl.rc_context({"legend.fontsize": "x-small"}):
         plot_average_reward(results)
 
-    fig.savefig(os.path.join(path, f"xp1all_fig2__{tag}.pdf"))
+    fig.savefig(os.path.join(path, f"{xp1all}_fig2__{tag}.pdf"))
 
     return results
 
@@ -191,6 +195,13 @@ if __name__ == "__main__":
         type=str,
         default="./",
         help="The folder to store the resulting pickle and the figures",
+    )
+    parser.add_argument(
+        "--prefix",
+        required=False,
+        type=str,
+        default="",
+        help="extra prefix to add to the filenames",
     )
 
     # state, action, and arm space sizes
