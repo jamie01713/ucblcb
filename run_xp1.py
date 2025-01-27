@@ -4,6 +4,7 @@
 import os
 import pickle
 import warnings
+from copy import deepcopy
 
 from numpy.random import SeedSequence
 from functools import partial
@@ -121,7 +122,9 @@ def main(
         for Policy in generate_policies():
             results.append(
                 xp1.run(
-                    sq_exp,
+                    # each experiment uses the exact same seed sequence
+                    #  instead of sequentially updated one with `.spawn`
+                    deepcopy(sq_exp),
                     Policy,
                     kernels,
                     rewards,
