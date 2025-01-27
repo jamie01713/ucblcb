@@ -286,9 +286,7 @@ def vi_inf(
 
 
 @partial(jax.jit, static_argnames=["gam"], inline=True)
-def qfun_vi_inf(
-    ker: Array, rew: Array, val: Array, *, gam: float
-) -> tuple[int, Array]:
+def qfun_vi_inf(ker: Array, rew: Array, val: Array, *, gam: float) -> tuple[int, Array]:
     """optimal q-value of the infinite horizon control through value iterations."""
 
     # fp iterations complexity proportional to :math:`\frac1{1 - \gamma}`

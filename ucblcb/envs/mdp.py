@@ -133,7 +133,9 @@ class MDP(Env):
             jx = draw(random, n_population)
 
             # give up this RPGN to the MD for consumption
-            yield MDP(random, np.take(kernels, jx, axis=0), np.take(rewards, jx, axis=0))
+            yield MDP(
+                random, np.take(kernels, jx, axis=0), np.take(rewards, jx, axis=0)
+            )
 
     @classmethod
     def sample(
