@@ -35,25 +35,23 @@ def random_valid_binary_mdp(
     size = () if size is None else size
     rewards = np.broadcast_to([0.0, 1.0], (*size, 1, 1, 2))
 
-    # get a pool of good markov transition kernels `k_{asx} = p(x \mid s, a)`
+    # get a pool of good markov transition kernels `p_{asx} = p(x \mid s, a)`
     #  "acting is always good, and starting in good state is always good"
-    p0, p1 = default_rng(random).uniform(size=(2, *size, 2))
+    p_as1 = default_rng(random).uniform(size=(*size, 2, 2))
 
     # enforce "acting-is-always-good" `p_{0s1} <= p_{1s1}`
     if good_to_act:
-        p0, p1 = minmax(p0, p1)
+        p_0s1, p_1s1 = p_as1[..., 0, :], p_as1[..., 1, :]
+        p_as1 = np.stack(minmax(p_0s1, p_1s1), axis=-2)
 
-    p_as1 = np.stack((p0, p1), axis=-2)
-
-    # ensorce "good-origin-is-good" `p_{a01} <= p_{a11}`
-    p0, p1 = p_as1[..., 0], p_as1[..., 1]
+    # enforce "good-origin-is-good" `p_{a01} <= p_{a11}`
     if good_origin:
-        p0, p1 = minmax(p0, p1)
-
-    p_as1 = np.stack((p0, p1), axis=-1)
+        p_a01, p_a11 = p_as1[..., :, 0], p_as1[..., :, 1]
+        p_as1 = np.stack(minmax(p_a01, p_a11), axis=-1)
 
     # the binary mdp kernels `(..., A, S, X)`
-    return np.stack([1 - p_as1, p_as1], -1), rewards  # p_n(x \mid s, a), r_n(a, s, x)
+    p_asx = np.stack([1 - p_as1, p_as1], axis=-1)
+    return p_asx, rewards  # p_n(x \mid s, a), r_n(a, s, x)
 
 
 def binary_rmab_sampler(
