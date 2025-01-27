@@ -71,8 +71,13 @@ def episode(
     assert isinstance(pol, BasePolicy), type(pol)
     assert isinstance(n_steps, int), n_steps
 
-    random = default_rng(random)  # the PR generator `random` is consumed!
+    # the generator `random` is consumed by the policy `.update` and `.decide`!
+    random = default_rng(random)
 
+    # supply the policy with its own PRNG
+    pol_decide = partial(pol.decide, random)
+
+    # update the policy on the collected transition data
     def pol_update(batch):
         # side-effects from outer scope: `pol`, `random`
         assert batch
@@ -87,9 +92,6 @@ def episode(
 
         # keep track of the total reward from the transitions
         return obs, act, rew_, obs_
-
-    # supply the policy with its own PRNG
-    pol_decide = partial(pol.decide, *random.spawn(1))
 
     # interact with a new mdp env for `n_steps` to generate new experience
     trace, buffer = [], []
@@ -131,7 +133,7 @@ def sq_spawn(
         arys.append(sprout)
 
     # broadcast and stack them over the specified dim
-    return np.stack(np.broadcast_arrays(*arys), axis)
+    return np.stack(np.broadcast_arrays(*arys), axis) if len(shapes) > 1 else arys[0]
 
 
 def sneak_peek(

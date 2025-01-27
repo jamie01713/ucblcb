@@ -32,18 +32,19 @@ def pseudocode() -> None:
     # `experiment` is a collection of series to be played with DIFFERENT policies,
     #  and `series` is a list of environments to play with the same policy.
     experiment: list[tuple[list[Env], Callable[[], BasePolicy]]] = []
+    n_episodes: int = ...
 
-    # experiment loop
-    for episodes, Player in experiment:
+    # experiment loop (with pre-seeded envs in episodes)
+    for env, Player in experiment:
         pol = Player()
+
+        # let the policy rummage through the env for an oracle
+        pol.peek(env)
 
         # series of episodes loop
         h, k = [...], 0
         h[0] = pol.reset()
-        for env in episodes:
-            # let the policy rummage through the env for an oracle
-            pol.peek(env)
-
+        for _ in range(n_episodes):
             # per-episode loop
             x, r, a, t = [...], [...], [...], 0
             x[0], done = env.reset(), False
@@ -89,40 +90,33 @@ def run(
     # prepare the seed sequence for the experiment: the same seed for episodic env
     #   generator, but different for the policy's interactions within an episodes
     main = entropy if isinstance(entropy, SeedSequence) else SeedSequence(entropy)
-    sq_experiment = sq_spawn(
-        main,
-        # policy init
-        (n_experiments, 1),
-        # environment generator init
-        (1, 1),
-        # intra-episode deterministic chaos
-        (n_experiments, n_episodes_per_experiment),
-        axis=1,
-    )
+
+    # prepare the seed sequences for the experiment: one sequence for the env sampler
+    #  (env init and dynamics)m and another one for the policy (init and behaviour)
+    sqs_env, sqs_pol = sq_spawn(main, (2, n_experiments))
+
+    # get a deterministically chaotic sampler from a pool of the potential MDPs
+    envs = MDP.sampler(sqs_env, kernels, rewards, n_processes=n_processes)
 
     # per experiment loop
     history = []
-    for sq_pol_init, sq_env_init, sq_episodes in tqdm.tqdm(sq_experiment, ncols=60):
-        # create a new policy
-        pol = Creator(random=sq_pol_init[0])
+    for env, sq_pol in zip(envs, tqdm.tqdm(sqs_pol, ncols=60)):
+        # seeds for the policy: one for policy's init to consume, and the rest for
+        #  the policy's randomness during its multi-episode rollout in the env
+        sq_init, *sq_episodes = sq_pol.spawn(1 + n_episodes_per_experiment)
 
-        # a shortcut access to the ground truth about an env, called at the start
-        #  of each episode
-        policy_gains_unfair_advantage = sneak_peek(pol)
+        # create a new policy from the provided seed
+        pol = Creator(random=sq_init)
+        gain_gt_advantage = sneak_peek(pol)
 
-        # reuse the same seed sequence deterministic chaos in env
-        episodes = MDP.sample(sq_env_init[0], kernels, rewards, n_processes=n_processes)
+        # use a shortcut to access the ground truth about the env
+        gain_gt_advantage(env)
 
-        # multi-episode policy: fully reset envs between episodes, but not the policy
-        #  unless it takes an unfair sneak peek through the env
-        # XXX We draw a new env (at random the the pool) at the start of each episode,
-        #  but the policy is not reset. why? who knows?
+        # multi-episode policy rollout
         episode_rewards, walltimes = [], [monotonic()]
-        for env, seed_seq in zip(episodes, sq_episodes):
-            policy_gains_unfair_advantage(env)
-
+        for sq in sq_episodes:
             # the trace of rewards gained during the episode
-            episode_rewards.append(play(seed_seq, env, pol, n_steps_per_episode))
+            episode_rewards.append(play(sq, env, pol, n_steps_per_episode))
             walltimes.append(monotonic())
 
         # track whatever the episode runner yielded and per-episode time measurements
