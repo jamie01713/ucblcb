@@ -44,7 +44,7 @@ def generate_policies():
         },
         # optimal policy
         "ucblcb.policies.whittle.Whittle": {
-            "gamma": [0.9],  # discount
+            "gamma": [0.99],  # discount (the closer to one, the slower the VI!)
         },
     }
 
@@ -76,8 +76,8 @@ def main(
     # the number of instraction steps in each episode
     n_steps_per_episode: int = 500,
     # properties of binary MDPs' transitions
-    good_to_act: bool = True,
-    good_origin: bool = True,
+    no_good_to_act: bool = True,
+    no_good_origin: bool = True,
     **ignore,
 ):
     if ignore:
@@ -99,6 +99,8 @@ def main(
             f"H{n_steps_per_episode}",
             f"L{n_episodes_per_experiment}",
             f"E{n_experiments}",
+            "-ga" if no_good_to_act else "+ga",
+            "-go" if no_good_origin else "+go",
             f"{main.entropy:32X}",
         ]
     )
@@ -113,8 +115,8 @@ def main(
         kernels, rewards = random_valid_binary_mdp(
             sq_pop,
             size=(n_population,),
-            good_to_act=good_to_act,
-            good_origin=good_origin,
+            good_to_act=not no_good_to_act,
+            good_origin=not no_good_origin,
         )
 
         # run the implemented policies
@@ -229,17 +231,15 @@ if __name__ == "__main__":
         help="The size of pool of MDP arms from which environment are sampled",
     )
     parser.add_argument(
-        "--good-to-act",
+        "--no-good-to-act",
         required=False,
         action="store_true",
-        default=True,
         help="enforce good-to-act peroperty of MDPs",
     )
     parser.add_argument(
-        "--good-origin",
+        "--no-good-origin",
         required=False,
         action="store_true",
-        default=True,
         help="enforce good-origin peroperty of MDPs",
     )
 
