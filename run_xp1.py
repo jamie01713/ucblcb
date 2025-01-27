@@ -90,6 +90,8 @@ def main(
     if ignore:
         warnings.warn(repr(ignore), RuntimeWarning)
 
+    assert prefix or not isinstance(override, dict)
+
     # the name of the experiment
     xp1all = "xp1all" + ("_" if prefix else "") + prefix
 
@@ -122,7 +124,7 @@ def main(
 
     # run the experiment is not data is available
     data_pkl = os.path.join(path, f"{xp1all}_data__{tag}.pkl")
-    if not os.path.isfile(data_pkl) or override is not specs:
+    if not os.path.isfile(data_pkl):
         # one seed for the MDP population, another for the experiment
         sq_pop, sq_exp = main.spawn(2)
 
@@ -164,14 +166,14 @@ def main(
     # save the pdf for the average cumulative reward
     fig, ax = plt.subplots(1, 1, dpi=120, figsize=(7, 4))
     with mpl.rc_context({"legend.fontsize": "x-small"}):
-        plot_average_cumulative_reward(results)
+        plot_average_cumulative_reward(results, ax=ax)
 
     fig.savefig(os.path.join(path, f"{xp1all}_fig1__{tag}.pdf"))
 
     # save the pdf for the smoothed average reward
     fig, ax = plt.subplots(1, 1, dpi=120, figsize=(7, 4))
     with mpl.rc_context({"legend.fontsize": "x-small"}):
-        plot_average_reward(results)
+        plot_average_reward(results, ax=ax)
 
     fig.savefig(os.path.join(path, f"{xp1all}_fig2__{tag}.pdf"))
 
