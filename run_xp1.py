@@ -137,7 +137,7 @@ def main(
             "-ga" if no_good_to_act else "+ga",
             "-go" if no_good_origin else "+go",
             data,
-            f"{main.entropy:32X}",
+            f"{main.entropy:032X}",
         ]
     )
 

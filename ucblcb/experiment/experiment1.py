@@ -190,4 +190,4 @@ def make_name(
             f"E{n_experiments}",
         ]
     )
-    return f"{xp}__{suffix}__{policy_name}__{__dttm__}__{entropy:32X}"
+    return f"{xp}__{suffix}__{policy_name}__{__dttm__}__{entropy:032X}"
