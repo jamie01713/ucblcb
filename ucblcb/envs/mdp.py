@@ -29,9 +29,14 @@ class MDP(Env):
     # (N,) the joint state is made up of state of each mdp instance in the environment
     state_: State
 
-    def __init__(self, random: Generator, /, kernels, rewards) -> None:
+    def __init__(
+        self, random: Generator, /, kernels, rewards, *, noise: float = 0.0
+    ) -> None:
         self.kernels, self.rewards = self.validate(kernels, rewards)
         self.random_ = default_rng(random)  # the PRNG `random` is consumed!
+
+        # allow different per-arm noise level
+        self.noise = np.broadcast_to(np.maximum(0.0, noise), self.kernels.shape[:-3])
 
     def reset(self) -> tuple[Observation, dict]:
         # sample the initial state at random
@@ -50,12 +55,16 @@ class MDP(Env):
         # XXX `.multinomial` always draws from the distribution over the last axis
         probas = self.kernels[index, actions, self.state_, :]
         state_ = self.random_.multinomial(1, probas, size=None).argmax(-1)
-        reward_ = self.rewards[index, actions, self.state_, state_]
+        reward_ = self.rewards[index, actions, self.state_, state_].astype(float)
+
+        # Add N(0, \simga^2) noise to `r_{t+1}`
+        # XXX sample the noise anyway in order to make PRNG consumption predictable
+        reward_ += self.random_.normal(size=reward_.shape) * self.noise
 
         # return the next state and the reward feedback
         # XXX shouldn't it be a vector of bool?
         self.state_ = state_
-        return state_.copy(), reward_.astype(float), False, {}
+        return state_.copy(), reward_, False, {}
 
     # runtime props
     n_population = property(lambda self: self.kernels.shape[0])
@@ -109,6 +118,7 @@ class MDP(Env):
         *,
         n_processes: int = None,
         shuffle: bool = True,
+        **kwargs,
     ) -> Iterator["MDP"]:
         """Create instances of batched MDP by sampling from the kernel-reward pairs."""
 
@@ -141,7 +151,10 @@ class MDP(Env):
 
             # give up this RPGN to the MD for consumption
             yield MDP(
-                random, np.take(kernels, jx, axis=0), np.take(rewards, jx, axis=0)
+                random,
+                np.take(kernels, jx, axis=0),
+                np.take(rewards, jx, axis=0),
+                **kwargs,
             )
 
     @classmethod
@@ -153,6 +166,7 @@ class MDP(Env):
         rewards,
         *,
         n_processes: int = None,
+        **kwargs,
     ) -> Iterator["MDP"]:
         """Sample MDP env instances from the given population."""
 
@@ -160,7 +174,9 @@ class MDP(Env):
 
         # perpetually draw samples of MDPs from the same population
         stream = iter(lambda: random.spawn(1)[0], None)
-        yield from cls.sampler(stream, kernels, rewards, n_processes=n_processes)
+        yield from cls.sampler(
+            stream, kernels, rewards, n_processes=n_processes, **kwargs
+        )
 
 
 def random_mdp(
