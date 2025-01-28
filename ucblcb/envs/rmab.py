@@ -78,7 +78,7 @@ def binary_rmab_from_nasx_npz(npz: str, /, **ignore) -> tuple[ndarray, ndarray]:
 
 
 def binary_rmab_sampler(
-    random: Generator, /, transitions, n_processes: int = None
+    random: Generator, /, transitions, n_processes: int = None, *, noise: float = 0.0,
 ) -> Iterator[MDP]:
     """Sampler for binary RMAB problems with good transition."""
     raise RuntimeError("do not use")
@@ -105,11 +105,13 @@ def binary_rmab_sampler(
     assert True or is_state_good, "good start state should always be good"
 
     # simply delegate to the sub-iterator
-    yield from MDP.sample(random, transitions, rewards, n_processes)
+    yield from MDP.sample(
+        random, transitions, rewards, n_processes=n_processes, noise=noise
+    )
 
 
 def binary_rmab_sampler_expected(
-    random: Generator, /, transitions, n_processes: int = None
+    random: Generator, /, transitions, n_processes: int = None, *, noise: float = 0.0,
 ) -> Iterator[MDP]:
     """Sampler for binary RMAB problems with good transition."""
     raise RuntimeError("do not use")
@@ -135,4 +137,6 @@ def binary_rmab_sampler_expected(
     assert True or is_origin_good, "good start state should always be good"
 
     # simply delegate to the sub-iterator
-    yield from MDP.sample(random, transitions, rewards, n_processes)
+    yield from MDP.sample(
+        random, transitions, rewards, n_processes=n_processes, noise=noise
+    )
