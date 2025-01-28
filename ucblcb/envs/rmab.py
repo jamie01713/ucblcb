@@ -1,5 +1,6 @@
 """Routines to sample and verify binary batched MDPs for Restless MABs.
 """
+import warnings
 
 import numpy as np
 from numpy import ndarray
@@ -53,6 +54,27 @@ def random_valid_binary_mdp(
     # the binary mdp kernels `(..., A, S, X)`
     p_asx = np.stack([1 - p_as1, p_as1], axis=-1)
     return p_asx, rewards  # p_n(x \mid s, a), r_n(a, s, x)
+
+
+def binary_rmab_from_nasx_npz(npz: str, /, **ignore) -> tuple[ndarray, ndarray]:
+    """Read saved mdp population from a numpy's npz file."""
+    if not ignore:
+        warnings.warn(repr(ignore), RuntimeWarning)
+
+    # Read nasx arrays
+    vault = np.load(npz, allow_pickle=True)
+    kernels, rewards = vault["ker"], vault["rew"]
+
+    # broadcast and validate shapes
+    ker, rew = np.broadcast_arrays(kernels, rewards)
+    *_, n_actions, n_states, n_states_ = ker.shape
+    assert n_states == n_states_ == n_actions == 2, ker.shape
+
+    # make sure the kernels are Markov
+    assert np.all(np.allclose(ker.sum(-1), 1.0)), f"data in {npz} is not MDP"
+    ker /= np.sum(ker, axis=-1, keepdims=True)
+
+    return ker, rew
 
 
 def binary_rmab_sampler(
