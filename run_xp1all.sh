@@ -7,6 +7,7 @@ n_arms=50
 n_episodes_per_experiment=1
 n_steps_per_episode=500
 target=./results
+noise=0.0
 
 # grid (whitespace separated strings, or '' for empty)
 n_budgets="5 10 15 20"
@@ -40,6 +41,7 @@ for n_budget in $n_budgets; do
             --n_experiments=$n_experiments                           \
             --n_episodes_per_experiment=$n_episodes_per_experiment   \
             --n_steps_per_episode=$n_steps_per_episode               \
+            --noise=$noise                                           \
             --override="${spec_override}"
     done
 done

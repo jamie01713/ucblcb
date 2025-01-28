@@ -86,7 +86,7 @@ def run(
     n_experiments: int,
     n_episodes_per_experiment: int,
     n_steps_per_episode: int,
-    noise: float = 0.0,
+    noise: float,
 ) -> tuple[BasePolicy, dict]:
     n_population, n_actions, n_states, _ = kernels.shape
     assert 0 < n_budget <= n_processes

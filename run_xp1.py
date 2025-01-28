@@ -89,9 +89,10 @@ def main(
     n_episodes_per_experiment: int = 33,
     # the number of instraction steps in each episode
     n_steps_per_episode: int = 500,
-    # properties of binary MDPs' transitions
+    # properties of binary MDPs' transitions and rewards
     no_good_to_act: bool = True,
     no_good_origin: bool = True,
+    noise: float = 0.0,
     # policies to run the experiment on (see `specs`)
     override: dict = None,
     **ignore,
@@ -142,6 +143,7 @@ def main(
             f"H{n_steps_per_episode}",
             f"L{n_episodes_per_experiment}",
             f"E{n_experiments}",
+            f"{noise!s}",
             "-ga" if no_good_to_act else "+ga",
             "-go" if no_good_origin else "+go",
             data,
@@ -174,6 +176,7 @@ def main(
                     n_experiments=n_experiments,
                     n_episodes_per_experiment=n_episodes_per_experiment,
                     n_steps_per_episode=n_steps_per_episode,
+                    noise=noise,
                 )
             )
 
@@ -290,6 +293,13 @@ if __name__ == "__main__":
         required=False,
         action="store_true",
         help="enforce good-origin peroperty of MDPs",
+    )
+    parser.add_argument(
+        "--noise",
+        required=False,
+        type=float,
+        default=0.0,
+        help="Independent gaussian noise added to the reward",
     )
 
     # the source of the mdp pool

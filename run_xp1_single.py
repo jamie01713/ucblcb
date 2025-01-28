@@ -44,6 +44,8 @@ def main(
     n_episodes_per_experiment: int = 33,
     # the number of instraction steps in each episode
     n_steps_per_episode: int = 500,
+    # the noise level in the rewards
+    noise: float = 0.0,
     **ignore,
 ):
     if ignore:
@@ -80,6 +82,7 @@ def main(
         n_experiments=n_experiments,
         n_episodes_per_experiment=n_episodes_per_experiment,
         n_steps_per_episode=n_steps_per_episode,
+        noise=noise,
     )
 
     # save the experiment data
@@ -139,6 +142,7 @@ if __name__ == "__main__":
     parser.add_argument("--n_states",                  "-S", type=int, default=2)
     parser.add_argument("--n_actions",                 "-A", type=int, default=2)
     parser.add_argument("--n_arms",                    "-N", type=int, default=100)
+    parser.add_argument("--noise",                           type=float, default=0.0)
 
     # the budget of arms
     parser.add_argument("--n_budget",                  "-B", type=int, default=20)
