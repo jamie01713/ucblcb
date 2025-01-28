@@ -9,7 +9,7 @@ from functools import partial
 from numpy.random import default_rng, Generator, SeedSequence
 
 from typing import Iterator, Iterable
-from .base import State, Action, Observation, Reward
+from .base import State, Action, Observation, Reward, Done
 
 from .base import Env
 
@@ -42,7 +42,7 @@ class MDP(Env):
         # XXX `random_` is consumed and updated inplace!
         return self.state_.copy(), {}
 
-    def step(self, /, actions: Action) -> tuple[Observation, Reward, bool, dict]:
+    def step(self, /, actions: Action) -> tuple[Observation, Reward, Done, dict]:
         # get the member-to-mdp designation
         index = np.arange(len(self.kernels))
 

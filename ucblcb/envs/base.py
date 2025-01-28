@@ -10,6 +10,7 @@ from typing import TypeVar
 Observation = State = TypeVar("State", bound=ndarray[int])
 Action = TypeVar("Action", bound=ndarray[int])
 Reward = TypeVar("Reward", bound=float) | ndarray[float]
+Done = TypeVar("Done", bound=bool) | ndarray[int] | ndarray[bool]
 
 
 class Env:
@@ -28,7 +29,7 @@ class Env:
 
         return 0, {}
 
-    def step(self, /, actions: Action) -> tuple[Observation, Reward, bool, dict]:
+    def step(self, /, actions: Action) -> tuple[Observation, Reward, Done, dict]:
         raise NotImplementedError
 
         return 0, 0.0, True, {}
