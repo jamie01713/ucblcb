@@ -119,7 +119,7 @@ class WIQL(BasePolicy):
         # `m_{aks}` the number of sample which had action `a` applied to arm `k`
         #  in state `s`
         # XXX the `obs-act-rew-new` arrays have shape `(batch, N)` and `batch` is
-        #  not necessarily one.
+        #  not necessarily one. `fin` has shape `(batch,)` and take values ±1, or 0.
         # XXX strictly speaking in RL terms, our env has vector state space (vector
         #  `s \in S^N` indicating state `s_k` of arm `k`) and vector action space
         #  where `a \in [A]^N` is a vector of control signals applied to each arm:
@@ -128,11 +128,17 @@ class WIQL(BasePolicy):
         np.add.at(m_aks, (act, idx, obs), 1)
         self.n_aks_ += m_aks
 
+        # if the transition terminated the episode, then we MUST use zero as the
+        #  the value estimate at the next state `x_j`, rather the `\max_u q(x_j, u)`.
+        #  Because the value at the terminal state, at which we can state ad infinitum,
+        #  is assumed to be ZERO.
+        gam = np.where(fin[..., np.newaxis] > 0, 0.0, self.gamma)
+
         # compute the temporal-difference target for the observed SARX data and each arm
-        #  `\delta^0_{jk} = r_{jk} + \gamma \max_u q_k(x_{jk}, u)`
+        #  `\delta^0_{jk} = r_{jk} + \gamma 1_{f_j \neq \top} \max_u q_k(x_{jk}, u)`
         #  for transition `s_j, a_j \to r_j, x_j` from the batch (origin state `s_j`
         #  consequence state `x_j`).
-        td_jk = rew + self.gamma * np.max(self.qval_aks_, axis=0)[idx, new]
+        td_jk = rew + gam * np.max(self.qval_aks_, axis=0)[idx, new]
 
         # get the gradient of the td-error ell-2 loss:
         #   \frac1J \sum_{jk} \frac12 (\delta^0_{jk} - q_k(s_{jk}, a_{jk}))^2
