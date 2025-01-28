@@ -26,7 +26,7 @@ def ucb(n_kas, T: int, /, C: float = 1.0, delta: float = 1e-3):
     return C * np.sqrt(2 * n_states * log_term / np.maximum(n_kas, 1))
 
 
-class UCWhittle(Whittle):
+class BaseUCWhittle(Whittle):
     n_actions: int = 2  # binary
     alpha: float | None
     gamma: float
@@ -77,6 +77,20 @@ class UCWhittle(Whittle):
         self.p_kas1_ += upd_kas
 
         # get the extreme-points estimate of `p_k(x=1 | s, a)`
+        self.compute_whittle()
+
+        return self
+
+    def compute_whittle(self):
+        raise NotImplementedError
+
+    # uninitialized_decide_impl defaults to `randomsubset(.budget, obs.shape[1])`
+
+    # decide_impl defaults to the implementation in Whittle.decide_impl
+
+
+class UCWhittleExtreme(BaseUCWhittle):
+    def compute_whittle(self):
         ub_kas = ucb(self.n_kas_, self.n_max_steps)
         xtreme = np.stack(
             (
@@ -85,9 +99,9 @@ class UCWhittle(Whittle):
             ), axis=-2
         )
 
-        # cpli and make into a proper Markov kernel
+        # clip and make into a proper Markov kernel
         p_kas1 = np.clip(xtreme, 0, 1)
-        p_kasx = np.stack((1 - p_kas1, p_kas1), axis=-1)
+        p_kasx = np.stack((1 - p_kas1, p_kas1), axis=-1)  # -> kasx
 
         # compute the whittle index for all arms and all states
         r_kasx = np.broadcast_to(np.r_[0.0, 1.0], p_kasx.shape)
@@ -97,6 +111,19 @@ class UCWhittle(Whittle):
 
         return self
 
-    # uninitialized_decide_impl defaults to `randomsubset(.budget, obs.shape[1])`
 
-    # decide_impl defaults to the implementation in Whittle.decide_impl
+class UCWhittleUCB(BaseUCWhittle):
+    def compute_whittle(self):
+        ub_kas = ucb(self.n_kas_, self.n_max_steps)
+
+        # clip and make into a proper Markov kernel
+        p_kas1 = np.clip(self.p_kas1_ + ub_kas, 0, 1)
+        p_kasx = np.stack((1 - p_kas1, p_kas1), axis=-1)  # -> kasx
+
+        # compute the whittle index for all arms and all states
+        r_kasx = np.broadcast_to(np.r_[0.0, 1.0], p_kasx.shape)
+        _, self.whittle_ks_, _ = batched_whittle_vi_inf_bisect(
+            p_kasx, r_kasx, gam=self.gamma
+        )
+
+        return self
