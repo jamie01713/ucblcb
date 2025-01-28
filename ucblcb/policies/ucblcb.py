@@ -101,7 +101,8 @@ class UcbLcb(BasePolicy):
         self.avg_rew_sk_ = np.zeros(shape, float)
 
         # expected reward of arm `k` leaving state `s` under action `a_k = 0`
-        self.phi_sk_ = np.zeros((self.n_states, self.n_arms_in_), float)
+        if not hasattr(self, "phi_sk_"):
+            self.phi_sk_ = np.zeros((self.n_states, self.n_arms_in_), float)
 
         # SANITY CHECK (remove when publishing)
         self.run_sum_rew_sk_ = np.zeros(shape, float)
