@@ -1,5 +1,5 @@
-prefix=
-source=
+# prefix=good-instance
+# source=./good_instance.npz
 
 n_experiments=101
 n_population=50
@@ -19,11 +19,11 @@ entropy=B76A074C23C703767710E1D756F73AE9
 # in case we wan to run a subset of experiments (setting overides may overwrite
 #  cached results in existing $target folders; set to 'null' for defaults)
 spec_override='null'
-spec_override='{
-    "ucblcb.policies.ucblcb.UcbLcb": {"threshold": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]},
-    "ucblcb.policies.wiql.WIQL": {"gamma": [0.9], "alpha": [0.5]},
-    "ucblcb.policies.whittle.Whittle": {"gamma": [0.9]}
-}'
+# spec_override='{
+#     "ucblcb.policies.ucblcb.UcbLcb": {"threshold": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]},
+#     "ucblcb.policies.wiql.WIQL": {"gamma": [0.9], "alpha": [0.5]},
+#     "ucblcb.policies.whittle.Whittle": {"gamma": [0.9]}
+# }'
 
 # budgets
 for n_budget in $n_budgets; do
