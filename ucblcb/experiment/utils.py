@@ -94,6 +94,8 @@ def episode(
         return obs, act, rew_, obs_
 
     # interact with a new mdp env for `n_steps` to generate new experience
+    # XXX `rollout` is an ITERATOR FUNCTION, whose body is run concurrently lockstep
+    #  with the body of this for-loop.
     trace, buffer = [], []
     for step, sarx, done in rollout(env, pol_decide, n_steps):
         # save `sarx = (x_t, a_t, r_{t+1}, x_{t+1})`

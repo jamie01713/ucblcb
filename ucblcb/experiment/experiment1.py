@@ -53,6 +53,7 @@ def pseudocode() -> None:
             # XXX `r[0]` is undefined!
             while not done:
                 # pol: (h_k, x_t) -->> a_t
+                # XXX random decision if `pol` has NEVER been updated!
                 a[t] = pol.decide(h[k], x[t])
 
                 # env: (x_t, a_t) -->> (x_{t+1}, r_{t+1})
@@ -110,7 +111,7 @@ def run(
 
         # seeds for the policy: one for policy's init to consume, and the rest for
         #  the policy's randomness during its multi-episode rollout in the env
-        sq_init, *sq_episodes = sq_pol.spawn(1 + n_episodes_per_experiment)
+        sq_init, *sq_pol_episodes = sq_pol.spawn(1 + n_episodes_per_experiment)
 
         # create a new policy from the provided seed
         pol = Creator(random=sq_init)
@@ -119,11 +120,12 @@ def run(
         # use a shortcut to access the ground truth about the env
         gain_gt_advantage(env)
 
-        # multi-episode policy rollout
+        # multi-episode policy rollout: the same policy `pol` (init and gt advantage)
+        #  is run for `n_episodes_per_experiment * n_steps_per_episode` total steps.
         episode_rewards, walltimes = [], [monotonic()]
-        for sq in sq_episodes:
+        for sq_pol in sq_pol_episodes:
             # the trace of rewards gained during the episode
-            episode_rewards.append(episode(sq, env, pol, n_steps_per_episode))
+            episode_rewards.append(episode(sq_pol, env, pol, n_steps_per_episode))
             walltimes.append(monotonic())
 
         # track whatever the episode runner yielded and per-episode time measurements
