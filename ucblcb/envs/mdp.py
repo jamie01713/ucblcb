@@ -118,10 +118,17 @@ class MDP(Env):
             n_processes = n_population
         n_processes = min(n_population, n_processes)
 
-        # sub-sample a cohort, or shuffle within population
-        draw = Generator.permutation if shuffle else (lambda _, m: np.arange(m))
+        # sub-sample a cohort w/o replacement, or shuffle within population
         if n_population > n_processes:
             draw = partial(Generator.choice, size=n_processes, replace=False)
+
+        elif n_population == n_processes:
+            draw = Generator.permutation if shuffle else (lambda _, m: np.arange(m))
+
+        # oversample if the number of requested arms (processes) is larger then
+        #  the population
+        else:
+            draw = partial(Generator.choice, size=n_processes, replace=True)
 
         # check kernel-reward pair consistency
         kernels, rewards = cls.validate(kernels, rewards)
