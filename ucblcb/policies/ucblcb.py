@@ -103,6 +103,9 @@ class UcbLcb(BasePolicy):
         # expected reward of arm `k` leaving state `s` under action `a_k = 0`
         self.phi_sk_ = np.zeros((self.n_states, self.n_arms_in_), float)
 
+        # SANITY CHECK (remove when publishing)
+        self.run_sum_rew_sk_ = np.zeros(shape, float)
+
         return self
 
     def update_impl(self, /, obs, act, rew, new, *, random: Generator = None):
@@ -130,6 +133,20 @@ class UcbLcb(BasePolicy):
         # update the average per state-arm reward estimate (q-value of pull)
         np.divide(upd_sk, self.n_pulls_sk_, where=self.n_pulls_sk_ > 0, out=upd_sk)
         self.avg_rew_sk_ += upd_sk
+
+        # SANITY CHECK: test out incremental mean update against a runnning sum
+        np.add.at(self.run_sum_rew_sk_, (obs, idx), val_)
+
+        # mean_rew_sk_ is zero if n_pulls_sk_ is zero, otherwise it is the ratio
+        #   of run_sum_rew_sk_ to n_pulls_sk_ (see docs pf numpy.divide)
+        mean_rew_sk_ = np.zeros_like(self.run_sum_rew_sk_)
+        np.divide(
+            self.run_sum_rew_sk_,
+            self.n_pulls_sk_,
+            where=self.n_pulls_sk_ > 0,
+            out=mean_rew_sk_,  # <- INPALCE
+        )
+        assert np.allclose(self.avg_rew_sk_, mean_rew_sk_)
 
         return self
 
