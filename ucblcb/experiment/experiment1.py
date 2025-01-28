@@ -86,6 +86,7 @@ def run(
     n_experiments: int,
     n_episodes_per_experiment: int,
     n_steps_per_episode: int,
+    noise: float = 0.0,
 ) -> tuple[BasePolicy, dict]:
     n_population, n_actions, n_states, _ = kernels.shape
     assert 0 < n_budget <= n_processes
@@ -104,7 +105,7 @@ def run(
     sqs_env, sqs_pol = sq_spawn(main, (2, n_experiments))
 
     # get a deterministically chaotic sampler from a pool of the potential MDPs
-    envs = MDP.sampler(sqs_env, kernels, rewards, n_processes=n_processes)
+    envs = MDP.sampler(sqs_env, kernels, rewards, n_processes=n_processes, noise=noise)
 
     # per experiment loop
     history = []
@@ -158,6 +159,7 @@ def run(
         n_experiments=n_experiments,
         n_episodes_per_experiment=n_episodes_per_experiment,
         n_steps_per_episode=n_steps_per_episode,
+        noise=noise,
     )
 
 
@@ -174,6 +176,7 @@ def make_name(
     n_experiments: int,
     n_episodes_per_experiment: int,
     n_steps_per_episode: int,
+    noise: float,
     __dttm__: str,
     **ignore,
 ) -> str:
@@ -188,6 +191,7 @@ def make_name(
             f"H{n_steps_per_episode}",
             f"L{n_episodes_per_experiment}",
             f"E{n_experiments}",
+            f"{noise!s}",
         ]
     )
     return f"{xp}__{suffix}__{policy_name}__{__dttm__}__{entropy:032X}"
