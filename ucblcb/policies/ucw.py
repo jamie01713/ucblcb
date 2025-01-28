@@ -105,9 +105,10 @@ class UCWhittleExtreme(BaseUCWhittle):
 
         # compute the whittle index for all arms and all states
         r_kasx = np.broadcast_to(np.r_[0.0, 1.0], p_kasx.shape)
-        _, self.whittle_ks_, _ = batched_whittle_vi_inf_bisect(
+        _, lam_ks_, _ = batched_whittle_vi_inf_bisect(
             p_kasx, r_kasx, gam=self.gamma
         )
+        self.whittle_ks_ = np.asarray(lam_ks_)
 
         return self
 
@@ -122,8 +123,9 @@ class UCWhittleUCB(BaseUCWhittle):
 
         # compute the whittle index for all arms and all states
         r_kasx = np.broadcast_to(np.r_[0.0, 1.0], p_kasx.shape)
-        _, self.whittle_ks_, _ = batched_whittle_vi_inf_bisect(
+        _, lam_ks_, _ = batched_whittle_vi_inf_bisect(
             p_kasx, r_kasx, gam=self.gamma
         )
+        self.whittle_ks_ = np.asarray(lam_ks_)
 
         return self
