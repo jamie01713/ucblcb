@@ -32,22 +32,26 @@ from itertools import product
 specs = {
     "ucblcb.policies.base.RandomSubsetPolicy": {},
     # product of confidence interval incremental reward estimates with greedy policy
-    "ucblcb.policies.ucblcb.UcbLcb": {
-        "threshold": [0.1, 0.5, 0.9],  # assumes reward in `[0, 1]`
+    "ucblcb.policies.lcbggt.LGGT": {
+        "threshold": [0.1, 0.5],  # assumes reward in `[0, 1]`
     },
     # whittle-index q-learning
     "ucblcb.policies.wiql.WIQL": {
         "gamma": [0.99],  # discount (was set to one in the original impl)
-        "alpha": [0.5],  # lr schedule
+        "alpha": [None],  # lr schedule
     },
     # optimal policy
     "ucblcb.policies.whittle.Whittle": {
         "gamma": [0.99],  # discount (the closer to one, the slower the VI!)
     },
-    # UCWhittle-Extreme
-    "ucblcb.policies.ucw.UCWhittle": {
-        "gamma": [0.99],  # discount (the closer to one, the slower the VI!)
-    },
+    # # UCWhittle-Extreme
+    # "ucblcb.policies.ucw.UCWhittleExtreme": {
+    #     "gamma": [0.99],  # discount (the closer to one, the slower the VI!)
+    # },
+    # # UCWhittle-UCB
+    # "ucblcb.policies.ucw.UCWhittleUCB": {
+    #     "gamma": [0.99],  # discount (the closer to one, the slower the VI!)
+    # },
 }
 
 

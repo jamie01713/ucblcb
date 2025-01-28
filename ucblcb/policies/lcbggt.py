@@ -40,8 +40,8 @@ def ucb(N, T, *, C: float = 1.714):
     return C * np.sqrt((np.log(np.log(Np1 + 1)) + 2 * np.log(T * 10)) / Np1)
 
 
-class UcbLcb(BasePolicy):
-    """UCBLCB policy for binary joint-control multi-arm mdps."""
+class LGGT(BasePolicy):
+    """Lcb-guided greedy thresholding policy for binary joint-control multi-arm mdps."""
 
     n_actions: int = 2  # binary
     threshold: float
@@ -80,20 +80,23 @@ class UcbLcb(BasePolicy):
         self.threshold = threshold
 
     def sneak_peek(self, env, /) -> None:
-        """Break open the black box and rummage in it for unfair advantage."""
+        """Break open the black box and rummage in it for unfair advantage.
+
+        Notes
+        -----
+        Make sure NOT to reset the GT advantage in `setup_impl` if `sneak-peek`
+        is called before the very first update (which automatically does setup).
+        """
+
         # ideally, whatever we get a hold of here should be estimated from some
         #  sample collected burn-in period by standard means
         if not isinstance(env, MDP):
             raise NotImplementedError(type(env))
 
-        # the expected reward at state `s` from arm `k` if it is not pulled (`a=0`)
-        #  `\phi_k(a=0, s) = \sum_x r_k(a=0, s, x) p_k(x | a=0, s)`
-        # XXX note the transposed output dims, since `phi_sk_` is `(S, N,)`!
+        # Get the expected reward `\phi_k(a=0, s)` from arm `k` at state `s` if
+        #  it is not pulled `a=0`: `\phi_k(a, s) = \sum_x r_k(a, s, x) p_k(x | a, s)`
+        # XXX note the __transposed__ output dims: `phi_sk_` is `(S, N,)`!
         self.phi_sk_ = np.einsum("kasx,kasx->ask", env.kernels, env.rewards)[0]
-
-        # make sure to modify `setup_impl` NOT to reset the GT advantage is
-        #  `sneak-peek` is called once beforethe first update!!!!
-        pass
 
     def setup_impl(self, /, obs, act, rew, new, fin, *, random: Generator = None):
         """Initialize the ucb-lcb state from the transition."""
@@ -105,13 +108,14 @@ class UcbLcb(BasePolicy):
         self.avg_rew_sk_ = np.zeros(shape, float)
 
         # expected reward of arm `k` leaving state `s` under action `a_k = 0`
+        # XXX DO NOT RESET privilieged information!
         if not hasattr(self, "phi_sk_"):
             self.phi_sk_ = np.zeros((self.n_states, self.n_arms_in_), float)
 
+        return self
+
         # SANITY CHECK (remove when publishing)
         self.run_sum_rew_sk_ = np.zeros(shape, float)
-
-        return self
 
     def update_impl(self, /, obs, act, rew, new, fin, *, random: Generator = None):
         super().update_impl(obs, act, rew, new, fin, random=random)
@@ -139,6 +143,8 @@ class UcbLcb(BasePolicy):
         np.divide(upd_sk, self.n_pulls_sk_, where=self.n_pulls_sk_ > 0, out=upd_sk)
         self.avg_rew_sk_ += upd_sk
 
+        return self
+
         # SANITY CHECK: test out incremental mean update against a runnning sum
         np.add.at(self.run_sum_rew_sk_, (obs, idx), val_)
 
@@ -152,8 +158,6 @@ class UcbLcb(BasePolicy):
             out=mean_rew_sk_,  # <- INPALCE
         )
         assert np.allclose(self.avg_rew_sk_, mean_rew_sk_)
-
-        return self
 
     # uninitialized_decide_impl defaults to `randomsubset(.budget, obs.shape[1])`
 
