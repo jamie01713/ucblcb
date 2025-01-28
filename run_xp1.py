@@ -33,7 +33,6 @@ specs = {
     # product of confidence interval incremental reward estimates with greedy policy
     "ucblcb.policies.ucblcb.UcbLcb": {
         "threshold": [0.1, 0.5, 0.9],  # assumes reward in `[0, 1]`
-        # "threshold": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9],  # assumes reward in `[0, 1]`
     },
     # whittle-index q-learning
     "ucblcb.policies.wiql.WIQL": {
@@ -167,6 +166,7 @@ def main(
     fig, ax = plt.subplots(1, 1, dpi=120, figsize=(7, 4))
     with mpl.rc_context({"legend.fontsize": "x-small"}):
         plot_average_cumulative_reward(results, ax=ax)
+        ax.set_ylim(17, 30)
 
     fig.savefig(os.path.join(path, f"{xp1all}_fig1__{tag}.pdf"))
 
@@ -174,6 +174,7 @@ def main(
     fig, ax = plt.subplots(1, 1, dpi=120, figsize=(7, 4))
     with mpl.rc_context({"legend.fontsize": "x-small"}):
         plot_average_reward(results, ax=ax)
+        ax.set_ylim(17, 30)
 
     fig.savefig(os.path.join(path, f"{xp1all}_fig2__{tag}.pdf"))
 

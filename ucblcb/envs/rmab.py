@@ -34,6 +34,7 @@ def random_valid_binary_mdp(
     # XXX `good` means the +ve reward!
     size = () if size is None else size
     rewards = np.broadcast_to([0.0, 1.0], (*size, 1, 1, 2))
+    # XXX for `r(a, s, x) = 1_{s=1}` use `([[0.0], [1.0]], (*size, 1, 2, 1))`
 
     # get a pool of good markov transition kernels `p_{asx} = p(x \mid s, a)`
     #  "acting is always good, and starting in good state is always good"
