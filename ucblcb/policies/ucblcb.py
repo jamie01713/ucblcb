@@ -91,6 +91,10 @@ class UcbLcb(BasePolicy):
         # XXX note the transposed output dims, since `phi_sk_` is `(S, N,)`!
         self.phi_sk_ = np.einsum("kasx,kasx->ask", env.kernels, env.rewards)[0]
 
+        # make sure to modify `setup_impl` NOT to reset the GT advantage is
+        #  `sneak-peek` is called once beforethe first update!!!!
+        pass
+
     def setup_impl(self, /, obs, act, rew, new, *, random: Generator = None):
         """Initialize the ucb-lcb state from the transition."""
         super().setup_impl(obs, act, rew, new, random=random)
