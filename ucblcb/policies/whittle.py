@@ -465,8 +465,13 @@ class Whittle(BasePolicy):
     gamma: float
 
     # attributes
+    # the number of iterations it took to compute the whittle state-subsidy function
     n_iter_k_: ndarray[int]  # (N, S)
+
+    # the optimal whittle index
     whittle_ks_: ndarray[float]  # (N, S)
+
+    # the optimal long-term value for the Whittle's subsidy
     value_ks_: ndarray[float]  # (N, S)
 
     def __repr__(self) -> str:

@@ -37,7 +37,7 @@ The following command runs the experiments declared in `run_xp1all.sh`, which sw
 ```bash
 # from the root of the repo
 micromamba run -n ucblcb sh ./run_xp1all.sh
-micromamba run -n ucblcb sh ./run_xp1_ucblcb.sh
+micromamba run -n ucblcb sh ./run_xp1_lggt.sh
 ```
 
 ## Experiments with individual policies

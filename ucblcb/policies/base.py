@@ -110,6 +110,9 @@ class BasePolicy:
     n_samples_: ndarray[int]
     avg_rew_k_: ndarray[float]
 
+    def __repr__(self) -> str:
+        return type(self).__name__ + "()"
+
     def __init__(
         self,
         n_max_steps: int | None,
@@ -265,6 +268,3 @@ class RandomSubsetPolicy(BasePolicy):
     """A random subset policy for multi-arm binary action spaces."""
 
     decide_impl = BasePolicy.uninitialized_decide_impl
-
-    def __repr__(self) -> str:
-        return type(self).__name__ + "()"
