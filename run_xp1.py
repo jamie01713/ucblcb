@@ -5,6 +5,7 @@ import os
 import pickle
 import json
 import warnings
+
 from copy import deepcopy
 
 from numpy.random import SeedSequence
@@ -15,7 +16,7 @@ from matplotlib import pyplot as plt
 
 from ucblcb.policies.base import BasePolicy
 
-from ucblcb.envs.rmab import random_valid_binary_mdp
+from ucblcb.envs.rmab import random_valid_binary_mdp, binary_rmab_from_nasx_npz
 from ucblcb.experiment import experiment1 as xp1
 
 from ucblcb.experiment.utils import from_qualname
@@ -67,6 +68,7 @@ def main(
     *,
     # the entropy for seeding the environments
     entropy: int = 243799254704924441050048792905230269161,  # a value from numpy docs
+    source: str = "",
     # the total size of the mdp pool
     n_population: int = 1000,
     # the number of MDPs to be managed by the ramb
@@ -106,6 +108,23 @@ def main(
     path = os.path.abspath(path)
     os.makedirs(path, exist_ok=True)
 
+    # decide where to sample MDPs from
+    if source:
+        if not os.path.isfile(source):
+            raise RuntimeError(source)
+
+        sample_pool = partial(binary_rmab_from_nasx_npz, source)
+        data = "npz"
+
+    else:
+        sample_pool = partial(
+            random_valid_binary_mdp,
+            size=(n_population,),
+            good_to_act=not no_good_to_act,
+            good_origin=not no_good_origin,
+        )
+        data = "random"
+
     # construct the filename tag
     tag = "__".join(
         [
@@ -117,6 +136,7 @@ def main(
             f"E{n_experiments}",
             "-ga" if no_good_to_act else "+ga",
             "-go" if no_good_origin else "+go",
+            data,
             f"{main.entropy:32X}",
         ]
     )
@@ -128,12 +148,7 @@ def main(
         sq_pop, sq_exp = main.spawn(2)
 
         # get the pool of Markov processes
-        kernels, rewards = random_valid_binary_mdp(
-            sq_pop,
-            size=(n_population,),
-            good_to_act=not no_good_to_act,
-            good_origin=not no_good_origin,
-        )
+        kernels, rewards = sample_pool(sq_pop)
 
         # run the implemented policies
         results = []
@@ -267,6 +282,15 @@ if __name__ == "__main__":
         required=False,
         action="store_true",
         help="enforce good-origin peroperty of MDPs",
+    )
+
+    # the source of the mdp pool
+    parser.add_argument(
+        "--source",
+        type=str,
+        default="",
+        help="An npz-file to load transitions and rewards from "
+             "(leave empty for random pool).",
     )
 
     # override policy specs
