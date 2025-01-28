@@ -20,7 +20,7 @@ entropy=B76A074C23C703767710E1D756F73AE9
 #  cached results in existing $target folders; set to 'null' for defaults)
 spec_override='null'
 # spec_override='{
-#     "ucblcb.policies.ucblcb.UcbLcb": {"threshold": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]},
+#     "ucblcb.policies.lcbggt.LGGT": {"threshold": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]},
 #     "ucblcb.policies.wiql.WIQL": {"gamma": [0.9], "alpha": [0.5]},
 #     "ucblcb.policies.whittle.Whittle": {"gamma": [0.9]}
 # }'

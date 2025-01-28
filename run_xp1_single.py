@@ -132,7 +132,7 @@ if __name__ == "__main__":
     parser.register("type", "json", json.loads)
 
     # the policy and its hyperparameters
-    parser.add_argument("cls", type="qualname", default="ucblcb.policies.ucblcb.UcbLcb")
+    parser.add_argument("cls", type="qualname", default="ucblcb.policies.lcbggt.LGGT")
     parser.add_argument("--params", required=False, type="json", default="{}")
 
     # state, action, and arm space sizes
