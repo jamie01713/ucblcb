@@ -58,7 +58,7 @@ def random_valid_binary_mdp(
 
 def binary_rmab_from_nasx_npz(npz: str, /, **ignore) -> tuple[ndarray, ndarray]:
     """Read saved mdp population from a numpy's npz file."""
-    if not ignore:
+    if ignore:
         warnings.warn(repr(ignore), RuntimeWarning)
 
     # Read nasx arrays
