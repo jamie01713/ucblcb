@@ -95,9 +95,9 @@ class UcbLcb(BasePolicy):
         #  `sneak-peek` is called once beforethe first update!!!!
         pass
 
-    def setup_impl(self, /, obs, act, rew, new, *, random: Generator = None):
+    def setup_impl(self, /, obs, act, rew, new, fin, *, random: Generator = None):
         """Initialize the ucb-lcb state from the transition."""
-        super().setup_impl(obs, act, rew, new, random=random)
+        super().setup_impl(obs, act, rew, new, fin, random=random)
 
         # init the state-arm tables
         shape = self.n_states, self.n_arms_in_
@@ -113,8 +113,8 @@ class UcbLcb(BasePolicy):
 
         return self
 
-    def update_impl(self, /, obs, act, rew, new, *, random: Generator = None):
-        super().update_impl(obs, act, rew, new, random=random)
+    def update_impl(self, /, obs, act, rew, new, fin, *, random: Generator = None):
+        super().update_impl(obs, act, rew, new, fin, random=random)
 
         # update of the state-arm pull q-value tables
         # XXX this does `\mu_{n+m} - \mu_n = \frac{m}{n+m} (\bar{x}_m - \mu_n)`

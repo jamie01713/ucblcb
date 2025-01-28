@@ -96,9 +96,9 @@ class WIQL(BasePolicy):
         # the zero-init as indicated in algorithm 1 of [1]_
         self.zero_init = zero_init
 
-    def setup_impl(self, /, obs, act, rew, new, *, random: Generator = None):
+    def setup_impl(self, /, obs, act, rew, new, fin, *, random: Generator = None):
         """Initialize the ucb-lcb state from the transition."""
-        super().setup_impl(obs, act, rew, new, random=random)
+        super().setup_impl(obs, act, rew, new, fin, random=random)
 
         # init the arm-state-action value table
         shape = self.n_actions, self.n_arms_in_, self.n_states
@@ -107,11 +107,11 @@ class WIQL(BasePolicy):
 
         return self
 
-    def update_impl(self, /, obs, act, rew, new, *, random: Generator = None):
+    def update_impl(self, /, obs, act, rew, new, fin, *, random: Generator = None):
         """Update the q-function estimate on the batch of transitions."""
 
         # let the base class update the its state
-        super().update_impl(obs, act, rew, new, random=random)
+        super().update_impl(obs, act, rew, new, fin, random=random)
 
         # update of the arm-state-action q-value tables
         idx = np.broadcast_to(np.arange(self.n_arms_in_)[np.newaxis], obs.shape)

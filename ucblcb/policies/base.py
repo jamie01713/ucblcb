@@ -6,7 +6,7 @@ from numpy.random import default_rng, Generator
 from typing import Any
 from typing_extensions import Self
 
-from ..envs.base import Observation, Action, Reward
+from ..envs.base import Observation, Action, Reward, Done
 
 
 def check_consistent_shapes(*arys, axes: int | tuple[int, ...] = 2):
@@ -135,6 +135,7 @@ class BasePolicy:
         act: Action,
         rew: Reward,
         new: Observation,
+        fin: Done,
         *,
         random: Generator = None,
     ) -> Self:
@@ -165,6 +166,9 @@ class BasePolicy:
         # XXX we reset on the first call, and set `n_arms_in_`
         check_consistent_shapes(obs, act, rew, new, axes=(0, 1))
 
+        # check the termination flag
+        check_consistent_shapes(new, fin, axes=(0,))
+
         # make sure the `.n_arms_in_` are initialized: act is `(n_samples, n_arms,)`
         _, n_arms = np.shape(act)
         is_first_call = check_n_arms(self, n_arms, initialize=False) or not hasattr(
@@ -182,9 +186,9 @@ class BasePolicy:
 
         # call setup if we were not initialized earlier
         if is_first_call:
-            self.setup_impl(obs, act, rew, new, random=random)
+            self.setup_impl(obs, act, rew, new, fin, random=random)
 
-        return self.update_impl(obs, act, rew, new, random=random)
+        return self.update_impl(obs, act, rew, new, fin, random=random)
 
     def decide(self, random: Generator, /, obs: Observation) -> Action:
         """Decide the action to play to each arm at the provided observed state.
@@ -214,7 +218,7 @@ class BasePolicy:
         # call the `decide` implementation
         return self.decide_impl(random, obs)
 
-    def setup_impl(self, /, obs, act, rew, new, *, random: Generator = None):
+    def setup_impl(self, /, obs, act, rew, new, fin, *, random: Generator = None):
         # the base pocy tracks the number of times each arm has been interacted
         #  with and the average per-arm reward it yielded
         self.n_samples_ = 0
@@ -223,7 +227,7 @@ class BasePolicy:
 
         return self
 
-    def update_impl(self, /, obs, act, rew, new, *, random: Generator = None):
+    def update_impl(self, /, obs, act, rew, new, fin, *, random: Generator = None):
         # we make sure to keep track of pull counts and the reward for each pull
         # XXX this does `\mu_{n+m} - \mu_n = \frac{m}{n+m} (\bar{x}_m - \mu_n)`
         #     with per-arm m, n, and \bar{x}_m

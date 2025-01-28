@@ -1,4 +1,4 @@
-"""Rollout loop, episodic update loop, and experimnet seeding.
+"""Rollout loop, episodic update loop, experiment seeding, and miscellaneous tools.
 """
 
 import re
@@ -23,7 +23,7 @@ from ..policies.base import BasePolicy
 
 
 def rollout(
-    env: Env,  # non-batched env!
+    env: Env,
     /,
     policy: Callable[[Observation], Action],
     n_steps: int | None = None,
@@ -39,23 +39,31 @@ def rollout(
     while (n_steps is None or step < n_steps) and not done:
         # local time tick `t-1 -> t` (`x` becomes `s`)
         obs, rew = obs_, rew_  # noqa: F841
-        # XXX `obs`, `act`, `rew`, `obs_`,    and `rew_` are
-        #     `x_t`, `a_t`, `r_t`, `x_{t+1}`, and `r_{t+1}`, respectively.
+        # XXX `obs`, `act`, `rew`, `obs_`,    `rew_`,    and `fin_` are
+        #     `x_t`, `a_t`, `r_t`, `x_{t+1}`, `r_{t+1}`, and `f_{t+1}`, respectively.
 
         # `act` is `a_t` array of int of shape (P,)
         # x_t --policy-->> a_t
         # XXX `policy`, like env, can be stateful
         act = policy(np.expand_dims(obs, 0))[0]  # XXX single-element batch!
 
-        # (x_t, a_t) --env-->> (r_{t+1}, x_{t+1})
+        # (x_t, a_t) --env-->> (r_{t+1}, x_{t+1}, f_{t+1})
+        # XXX `f_{t+1}` indicates if the episode got natually terminated
         # XXX reward due to `t-1 -> t` transition is not used (`rew`), because
         #  at state `x_t` we took action `a_t` and got `r_{t+1}` as feedback
         #  (env's local step ticked from `t` to `t+1`)!
         obs_, rew_, done, _ = env.step(act)
 
-        # return the x_t, a_t, r_{t+1}, x_{t+1} transition
         step += 1
-        yield step, (obs, act, rew_, obs_), done
+
+        # the tri-state `done` flag:
+        #  +1: episode terminated and x_{t+1} is considered terminal
+        #  -1: rollout truncated, but x_{t+1} is non-terminal
+        #   0: neither: trajecory could continue after x_{t+1}
+        fin_ = +1 if done else -1 if step == n_steps else 0
+
+        # return the x_t, a_t, r_{t+1}, x_{t+1}, f_{t+1} transition
+        yield step, (obs, act, rew_, obs_, fin_), done
 
 
 def episode(
@@ -84,27 +92,27 @@ def episode(
 
         # `pol.update` expects a leading batch dimension, so we unpack
         #   the data and create one of size `len(batch)`
-        obs, act, rew_, obs_ = map(np.stack, zip(*batch))
+        obs, act, rew_, obs_, fin_ = map(np.stack, zip(*batch))
 
         # update the policy with the observed `sarx` transition
         # XXX `pol` is updated INPLACE, and the PRNG is consumed!
-        pol.update(obs, act, rew_, obs_, random=random)
+        pol.update(obs, act, rew_, obs_, fin_, random=random)
 
         # keep track of the total reward from the transitions
-        return obs, act, rew_, obs_
+        return obs, act, rew_, obs_, fin_
 
     # interact with a new mdp env for `n_steps` to generate new experience
     # XXX `rollout` is an ITERATOR FUNCTION, whose body is run concurrently lockstep
     #  with the body of this for-loop.
     trace, buffer = [], []
-    for step, sarx, done in rollout(env, pol_decide, n_steps):
-        # save `sarx = (x_t, a_t, r_{t+1}, x_{t+1})`
-        buffer.append(sarx)
+    for step, sarxf, done in rollout(env, pol_decide, n_steps):
+        # save `sarxf = (x_t, a_t, r_{t+1}, x_{t+1}, f_{t+1})`
+        buffer.append(sarxf)
         if len(buffer) < n_batch_size_per_update:
             continue
 
         # update the policy with the observed batch of `sarx` transitions
-        _, _, rew_, _ = pol_update(tuple(buffer))
+        _, _, rew_, _, _ = pol_update(tuple(buffer))
 
         # keep track of the total reward from the transitions
         trace.append(np.sum(rew_, axis=-1))  # respect the batch dim!
@@ -113,7 +121,7 @@ def episode(
 
     # do not forget the last incomplete batch
     if buffer:
-        _, _, rew_, _ = pol_update(tuple(buffer))
+        _, _, rew_, _, _ = pol_update(tuple(buffer))
         trace.append(np.sum(rew_, axis=-1))
 
     return np.concatenate(trace)

@@ -25,8 +25,10 @@ def pseudocode() -> None:
 
     Let :math:`h_t` be the internal state of the policy (`pol`), and :math:`x_t` --
     be the state of the environment (`env`). The stepping is governed by a step
-    in the environment :math:`(x_t, a_t) \to (x_{t+1}, r_{t+1})` and the feedback
-    :math:`r_{t+1}` is used to assign credit to past actions :math:`(a_s)_{s \leq t}`.
+    in the environment :math:`(x_t, a_t) \to (x_{t+1}, r_{t+1}, f_{t+1})` and
+    the feedback :math:`r_{t+1}` is used to assign credit to past actions
+    :math:`(a_s)_{s \leq t}`. The flag :math:`f_{t+1}` indicates if the episode
+    has natually terminated.
     """
 
     # `experiment` is a collection of environments to be played with independent
@@ -48,7 +50,7 @@ def pseudocode() -> None:
         # multi-episodic rollout loop
         for _ in range(n_episodes):
             # per-episode loop
-            x, r, a, t = [...], [...], [...], 0
+            x, r, a, f, t = [...], [...], [...], [...], 0
             x[0], done = env.reset(), False  # env "externalized" state
             # XXX `r[0]` is undefined!
             while not done:
@@ -56,14 +58,14 @@ def pseudocode() -> None:
                 # XXX random decision if `pol` has NEVER been updated!
                 a[t] = pol.decide(h[k], x[t])
 
-                # env: (x_t, a_t) -->> (x_{t+1}, r_{t+1})
-                x[t + 1], r[t + 1], done = env.step(x[t], a[t])
+                # env: (x_t, a_t) -->> (x_{t+1}, r_{t+1}, f_{t+1})
+                x[t + 1], r[t + 1], f[t + 1] = env.step(x[t], a[t])
 
-                # report (x[t], a[t], r[t + 1], x[t + 1]) to an analyzer
+                # report (x[t], a[t], r[t + 1], x[t + 1], f[t + 1]) to an analyzer
                 pass
 
-                # pol: (h_k, x_t, a_t, r_{t+1}, x_{t+1}) -->> h_{k+1}
-                h[k + 1] = pol.update(h[k], x[t], a[t], r[t + 1], x[t + 1])
+                # pol: (h_k, x_t, a_t, r_{t+1}, x_{t+1}, f_{t+1}) -->> h_{k+1}
+                h[k + 1] = pol.update(h[k], x[t], a[t], r[t + 1], x[t + 1], f[t + 1])
 
                 # env's within-episode step counter
                 t += 1
