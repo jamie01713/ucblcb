@@ -44,6 +44,10 @@ specs = {
     "ucblcb.policies.whittle.Whittle": {
         "gamma": [0.99],  # discount (the closer to one, the slower the VI!)
     },
+    # UCWhittle-Extreme
+    "ucblcb.policies.ucw.UCWhittle": {
+        "gamma": [0.99],  # discount (the closer to one, the slower the VI!)
+    },
 }
 
 
@@ -180,7 +184,7 @@ def main(
     # save the pdf for the average cumulative reward
     fig, ax = plt.subplots(1, 1, dpi=120, figsize=(7, 4))
     with mpl.rc_context({"legend.fontsize": "x-small"}):
-        plot_average_cumulative_reward(results, ax=ax)
+        plot_average_cumulative_reward(results, ax=ax, C=1.0)
         ax.set_ylim(17, 30)
 
     fig.savefig(os.path.join(path, f"{xp1all}_fig1__{tag}.pdf"))
@@ -188,7 +192,7 @@ def main(
     # save the pdf for the smoothed average reward
     fig, ax = plt.subplots(1, 1, dpi=120, figsize=(7, 4))
     with mpl.rc_context({"legend.fontsize": "x-small"}):
-        plot_average_reward(results, ax=ax)
+        plot_average_reward(results, ax=ax, C=1.0)
         ax.set_ylim(17, 30)
 
     fig.savefig(os.path.join(path, f"{xp1all}_fig2__{tag}.pdf"))
