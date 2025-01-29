@@ -111,10 +111,10 @@ class MDP(Env):
     @classmethod
     def sampler(
         cls,
-        seedseqs: Iterable[SeedSequence],
-        /,
         kernels,
         rewards,
+        /,
+        seedseqs: Iterable[SeedSequence],
         *,
         n_processes: int = None,
         shuffle: bool = True,
@@ -175,7 +175,7 @@ class MDP(Env):
         # perpetually draw samples of MDPs from the same population
         stream = iter(lambda: random.spawn(1)[0], None)
         yield from cls.sampler(
-            stream, kernels, rewards, n_processes=n_processes, **kwargs
+            kernels, rewards, stream, n_processes=n_processes, **kwargs
         )
 
 
