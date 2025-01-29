@@ -12,7 +12,7 @@ from collections.abc import Callable
 from ..envs import MDP
 from ..policies.base import BasePolicy
 from ..envs.base import Env
-from .play import episode
+from .play import rollout
 from .utils import sq_spawn, sneak_peek, snapshot_git
 
 
@@ -108,6 +108,13 @@ def run(
     # get a deterministically chaotic sampler from a pool of the potential MDPs
     envs = MDP.sampler(sqs_env, kernels, rewards, n_processes=n_processes, noise=noise)
 
+    # setup a rollout with policy updated inplace online after every step
+    seeded_online_episode = partial(
+        # interact for at most `n_steps_per_episode` or until the episode terminates
+        #  since auto is False
+        rollout, n_steps=n_steps_per_episode, auto=False, n_steps_per_update=1
+    )
+
     # per experiment loop
     history = []
     for env, sq_pol in zip(envs, tqdm.tqdm(sqs_pol, ncols=60)):
@@ -124,12 +131,19 @@ def run(
         # use a shortcut to access the ground truth about the env
         gain_gt_advantage(env)
 
-        # multi-episode policy rollout: the same policy `pol` (init and gt advantage)
-        #  is run for `n_episodes_per_experiment * n_steps_per_episode` total steps.
+        # explicit multi-episode policy rollout: the same policy `pol` (i.e. init and
+        #  ground truth advantage) runs and updates online for the total if
+        # `n_episodes_per_experiment * n_steps_per_episode` steps through `env`.
         episode_rewards, walltimes = [], [monotonic()]
         for sq_pol in sq_pol_episodes:
+            trace = []
+            # run a new episode, keeping track of the reward over all arms
+            # XXX `rew_` is `(n_steps_per_update, n_arms)`
+            for _, _, rew_, _, _ in seeded_online_episode(env, pol, sq_pol):
+                trace.append(np.sum(rew_, axis=-1))
+
             # the trace of rewards gained during the episode
-            episode_rewards.append(episode(sq_pol, env, pol, n_steps_per_episode))
+            episode_rewards.append(np.concatenate(trace))
             walltimes.append(monotonic())
 
         # track whatever the episode runner yielded and per-episode time measurements
