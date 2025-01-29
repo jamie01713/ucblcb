@@ -112,7 +112,10 @@ def run(
     seeded_online_episode = partial(
         # interact for at most `n_steps_per_episode` or until the episode terminates
         #  since auto is False
-        rollout, n_steps=n_steps_per_episode, auto=False, n_steps_per_update=1
+        rollout,
+        n_steps=n_steps_per_episode,
+        auto=False,
+        n_steps_per_update=1,
     )
 
     # per experiment loop

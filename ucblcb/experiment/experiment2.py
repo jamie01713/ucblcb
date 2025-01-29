@@ -216,9 +216,7 @@ def run(
     )
 
     # prepare the policy spawner (we assume the state and action spaces are known)
-    PolicyFactory = partial(
-        Policy, n_steps_per_replication, n_budget, n_states
-    )
+    PolicyFactory = partial(Policy, n_steps_per_replication, n_budget, n_states)
 
     # per experiment loop
     pol, output = run_all_experiments(

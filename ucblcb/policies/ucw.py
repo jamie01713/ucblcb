@@ -96,7 +96,8 @@ class UCWhittleExtreme(BaseUCWhittle):
             (
                 self.p_kas1_[:, 0, :] - ub_kas[:, 0, :],  # lcb for passive
                 self.p_kas1_[:, 1, :] + ub_kas[:, 1, :],  # ucb for active
-            ), axis=-2
+            ),
+            axis=-2,
         )
 
         # clip and make into a proper Markov kernel
@@ -105,9 +106,7 @@ class UCWhittleExtreme(BaseUCWhittle):
 
         # compute the whittle index for all arms and all states
         r_kasx = np.broadcast_to(np.r_[0.0, 1.0], p_kasx.shape)
-        _, lam_ks_, _ = batched_whittle_vi_inf_bisect(
-            p_kasx, r_kasx, gam=self.gamma
-        )
+        _, lam_ks_, _ = batched_whittle_vi_inf_bisect(p_kasx, r_kasx, gam=self.gamma)
         self.whittle_ks_ = np.asarray(lam_ks_)
 
         return self
@@ -123,9 +122,7 @@ class UCWhittleUCB(BaseUCWhittle):
 
         # compute the whittle index for all arms and all states
         r_kasx = np.broadcast_to(np.r_[0.0, 1.0], p_kasx.shape)
-        _, lam_ks_, _ = batched_whittle_vi_inf_bisect(
-            p_kasx, r_kasx, gam=self.gamma
-        )
+        _, lam_ks_, _ = batched_whittle_vi_inf_bisect(p_kasx, r_kasx, gam=self.gamma)
         self.whittle_ks_ = np.asarray(lam_ks_)
 
         return self

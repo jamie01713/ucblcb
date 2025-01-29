@@ -87,7 +87,9 @@ def plot_one_average_reward(
     return ax
 
 
-def plot_average_reward(results, *, alpha: float = 0.7, C: float = 0.0, ax=None) -> plt.Axes:
+def plot_average_reward(
+    results, *, alpha: float = 0.7, C: float = 0.0, ax=None
+) -> plt.Axes:
     """Plot the `average smoothed multi-episodic reward` for a list of results."""
     # higher alpha means less smoothing
     assert 0 <= alpha < 1, alpha
