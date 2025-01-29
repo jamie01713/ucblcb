@@ -190,13 +190,13 @@ def run_all_experiments(
 
 
 def run(
-    entropy: int | None,
+    kernels: ndarray,
+    rewards: ndarray,
     Policy: Callable[[...], BasePolicy],
     /,
-    kernels,
-    rewards,
+    entropy: int | None,
     *,
-    n_processes: int,
+    n_arms: int,
     n_budget: int,
     n_experiments: int,
     n_replications_per_experiment: int,
@@ -204,7 +204,7 @@ def run(
     noise: float,
 ) -> tuple[BasePolicy, dict]:
     n_population, n_actions, n_states, _ = kernels.shape
-    assert 0 < n_budget <= n_processes
+    assert 0 < n_budget <= n_arms
 
     # prepare the seed sequence for the experiment: the same seed for episodic env
     #   generator, but different for the policy's interactions within an episodes
@@ -212,7 +212,7 @@ def run(
 
     # get a deterministically chaotic generator from a pool of the potential MDPs
     EnvGenerator = partial(
-        MDP.sampler, kernels, rewards, n_processes=n_processes, noise=noise
+        MDP.sampler, kernels, rewards, n_processes=n_arms, noise=noise
     )
 
     # prepare the policy spawner (we assume the state and action spaces are known)
@@ -236,7 +236,7 @@ def run(
         entropy=main.entropy,
         # meta information
         config=dict(
-            n_processes=n_processes,
+            n_arms=n_arms,
             n_budget=n_budget,
             n_states=n_states,
             n_actions=n_actions,

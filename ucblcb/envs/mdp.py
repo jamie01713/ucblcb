@@ -116,7 +116,7 @@ class MDP(Env):
         /,
         seedseqs: Iterable[SeedSequence],
         *,
-        n_processes: int = None,
+        n_processes: int = None,  # n_arms
         shuffle: bool = True,
         **kwargs,
     ) -> Iterator["MDP"]:
