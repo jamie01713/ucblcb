@@ -26,7 +26,9 @@ from ucblcb.experiment.utils import ewmmean, expandingmean
 
 # populate the dictionary of algorithms and parameters for them
 specs = {
+    # random subset and the optimal policy
     "ucblcb.policies.base.RandomSubsetPolicy": {},
+    "ucblcb.policies.whittle.Whittle": {"gamma": [0.99]},  # high discount makes VI slow
     # product of confidence interval incremental reward estimates with greedy policy
     "ucblcb.policies.lcbggt.LGGT": {
         "threshold": [0.1, 0.5],  # assumes reward in `[0, 1]`
@@ -35,10 +37,6 @@ specs = {
     "ucblcb.policies.wiql.WIQL": {
         "gamma": [0.99],  # discount (was set to one in the original impl)
         "alpha": [None],  # lr schedule
-    },
-    # optimal policy
-    "ucblcb.policies.whittle.Whittle": {
-        "gamma": [0.99],  # discount (the closer to one, the slower the VI!)
     },
     # # UCWhittle-Extreme
     # "ucblcb.policies.ucw.UCWhittleExtreme": {
@@ -209,7 +207,10 @@ def main(
         cfg = output["config"]
         ax.set_title("E={n_experiments} N={n_arms} B={n_budget}".format_map(cfg))
         ax.set_xlabel("step out of {n_steps_per_replication} total".format_map(cfg))
-        ax.set_ylabel(f"Average cumulative reward ({n_replications_per_experiment} reps.)")
+        ax.set_ylabel(
+            f"Average cumulative reward ({n_replications_per_experiment} reps.)"
+        )
+        ax.set_ylim(17, 30)
 
     fig.savefig(os.path.join(path, f"{xp2all}_fig1__{tag}.pdf"))
 
@@ -236,8 +237,11 @@ def main(
         # name the axes and the figure
         cfg = output["config"]
         ax.set_title("E={n_experiments} N={n_arms} B={n_budget}".format_map(cfg))
-        ax.set_xlabel("step out of {n_steps_per_replication} total".format_map(cfg))
-        ax.set_ylabel(f"Average cumulative reward ({n_replications_per_experiment} reps.)")
+        ax.set_xlabel("$t=1..T$ T={n_steps_per_replication}".format_map(cfg))
+        ax.set_ylabel(
+            f"Average cumulative reward ({n_replications_per_experiment} reps.)"
+        )
+        ax.set_ylim(17, 30)
 
     fig.savefig(os.path.join(path, f"{xp2all}_fig2__{tag}.pdf"))
 
