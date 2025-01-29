@@ -80,6 +80,17 @@ def n_steps_per_episode(p, /, default: int = 20) -> None:
 
 
 @allow
+def n_steps_per_replication(p, /, default: int = 20) -> None:
+    p.add_argument(
+        "--n_steps_per_replication",
+        "-T",
+        type=int,
+        default=default,
+        help="The total number of steps in rollout",
+    )
+
+
+@allow
 def n_episodes_per_experiment(p, /, default: int = 500) -> None:
     p.add_argument(
         "--n_episodes_per_experiment",
@@ -87,6 +98,17 @@ def n_episodes_per_experiment(p, /, default: int = 500) -> None:
         type=int,
         default=default,
         help="The number of episodes to play in one experiment replication",
+    )
+
+
+@allow
+def n_replications_per_experiment(p, /, default: int = 500) -> None:
+    p.add_argument(
+        "--n_replications_per_experiment",
+        "-R",
+        type=int,
+        default=default,
+        help="The number of replications one experiment.",
     )
 
 
