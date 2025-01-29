@@ -3,6 +3,9 @@ from numpy import ndarray
 
 from numpy.random import Generator
 
+import gurobipy as gp
+from gurobipy import GRB
+
 from .whittle import Whittle, batched_whittle_vi_inf_bisect
 
 
@@ -31,6 +34,9 @@ class BaseUCWhittle(Whittle):
     alpha: float | None
     gamma: float
 
+    # hidden parameter
+    n_horizon: int
+
     # attributes
     # `n_{kas}` is the number times action `a` was played to arm `k` in state `s`
     n_kas_: ndarray[int]  # (N, A, S)
@@ -40,6 +46,9 @@ class BaseUCWhittle(Whittle):
 
     # the whittle index
     whittle_ks_: ndarray[np.float32]  # (N, S)
+
+    # internally managed experience replay buffer
+    replay_: list[tuple]
 
     # disable sneak-peek
     sneak_peek = None
@@ -53,10 +62,22 @@ class BaseUCWhittle(Whittle):
         self.n_kas_ = np.zeros(shape, int)
         self.p_kas1_ = np.zeros(shape, float)
 
+        self.replay_ = []
+        self.whittle_ks_ = random.normal(size=(self.n_arms_in_, self.n_states))
+
         return self
 
     def update_impl(self, /, obs, act, rew, new, fin, *, random: Generator = None):
         """Update the q-function estimate on the batch of transitions."""
+        self.replay_.append((obs, act, rew, new, fin))
+        n_experience = sum(len(x) for x, *_ in self.replay_)
+        if n_experience < self.n_horizon:
+            return self
+
+        # collate
+        obs, act, rew, new, fin = map(np.concatenate, zip(*self.replay_))
+        self.replay_.clear()
+
         super().update_impl(obs, act, rew, new, fin, random=random)
 
         # update of the arm-state-action probability of x=1
