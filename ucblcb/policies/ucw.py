@@ -147,3 +147,111 @@ class UCWhittleUCB(BaseUCWhittle):
         self.whittle_ks_ = np.asarray(lam_ks_)
 
         return self
+
+
+def pv_problem_grb(
+    p_lb: ndarray, p_ub: ndarray, /, rew: ndarray, *, gam: float
+) -> gp.Model:
+    """Convert our own MILP to SCIP model."""
+    p_lb, p_ub = np.broadcast_arrays(p_lb, p_ub)
+    batch, n_actions, n_states = p_lb.shape
+    assert n_states == n_actions == 2, p_lb.shape
+    assert np.all(p_lb <= p_ub)
+
+    Arms, States, Actions = tuple(range(batch)), (0, 1), (0, 1)
+
+    # p_lb, p_ub is (N, 2, 2)
+    # the values of the reward are baked into `good_to_act` and `good_in_good_state`
+    # rew = np.broadcast_to(np.r_[0.0, 1.0], (n_arms, n_actions, n_states, n_states))
+    # p_lb, p_ub is (N, 2, 2)
+    m = gp.Model("UCW-Pv")
+    m.setParam("OutputFlag", 0)
+    m.setParam("NonConvex", 2)  # nonconvex constraints
+    m.setParam("IterationLimit", 100)  # limit number of simplex iterations
+
+    # `p_{as} \in [l_{as}, u_{as}]` is the probability `p(x=1 | s, a)`
+    p = m.addVars(
+        Arms,
+        Actions,
+        States,
+        lb=np.clip(p_lb.ravel(), 0.0, 1.0),
+        ub=np.clip(p_ub.ravel(), 0.0, 1.0),
+        vtype=GRB.CONTINUOUS,
+        name="p",
+    )
+
+    # `v_{s}` is the value function `v(s)`
+    V = m.addVars(Arms, States, vtype=GRB.CONTINUOUS, name="V")
+
+    # `q_{0s}` is the value function `q(s, a=0)`
+    Q0 = m.addVars(Arms, States, vtype=GRB.CONTINUOUS, name="Q0")
+    m.addConstrs(
+        (
+            (
+                (rew[k, 0, s, 0] + gam * V[k, 0]) * (1 - p[k, 0, s])
+                + (rew[k, 0, s, 1] + gam * V[k, 1]) * p[k, 0, s]
+            ) == Q0[k, s]
+            for k in Arms for s in States
+        ),
+        name="q0_defn",
+    )
+
+    # `q_{1s}` is the value function `q(s, a=1)`
+    Q1 = m.addVars(Arms, States, vtype=GRB.CONTINUOUS, name="Q1")
+    m.addConstrs(
+        (
+            (
+                (rew[k, 1, s, 0] + gam * V[k, 0]) * (1 - p[k, 0, s])
+                + (rew[k, 1, s, 1] + gam * V[k, 1]) * p[k, 0, s]
+            ) == Q1[k, s]
+            for k in Arms for s in States
+        ),
+        name="q1_defn",
+    )
+
+    # Bellman eqn. constraints `v_k(s) = \max_a \tilde{T}^{p_k}_a v_k[s]` where
+    #     \tilde{T}^p_a J[s]
+    #         = E_{p(x| a, s)} r(a, s, x) - \lambda_{ks} 1_{a==1} + \gamma J(x)
+    m.addConstrs(
+        (V[k, s] == gp.max_([Q0[k, s], Q1[k, s]]) for k in Arms for s in States),
+        name="bellman",
+    )
+
+    # define the objective
+    m.setObjective(sum(V.values()), GRB.MAXIMIZE)
+
+    # solve
+    m.optimize()
+
+    return np.reshape([v.x for v in p.values()], p_lb.shape)
+
+
+class UCWhittlePv(BaseUCWhittle):
+    n_horizon: int = 20
+
+    def compute_whittle(self):
+        ub_kas = ucb(self.n_kas_, self.n_max_steps)
+
+        # plrepare the feasible transitio box
+        p_lb = np.clip(self.p_kas1_ - ub_kas, 0, 1)
+        p_ub = np.clip(self.p_kas1_ + ub_kas, 0, 1)
+
+        # split arms into chunks and solve Pv for each
+        r_kasx = np.broadcast_to(np.r_[0.0, 1.0], (*self.p_kas1_.shape, 2))
+
+        sols, p1, n_chunk_size = [], 0, 5  # 10n < 200 (upper limit for nonlin cons)
+        while p1 < len(self.p_kas1_):
+            p0, p1 = p1, p1 + n_chunk_size
+            sol = pv_problem_grb(
+                p_lb[p0:p1], p_ub[p0:p1], r_kasx[p0:p1], gam=self.gamma
+            )
+            sols.append(sol)
+
+        p_opt = np.concatenate(sols, axis=0)
+
+        # compute the whittle index for all arms and all states
+        p_kasx = np.stack((1 - p_opt, p_opt), axis=-1)  # -> kasx
+        _, lam_ks_, _ = batched_whittle_vi_inf_bisect(p_kasx, r_kasx, gam=self.gamma)
+        self.whittle_ks_ = np.asarray(lam_ks_)
+
+        return self
