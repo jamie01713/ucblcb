@@ -236,15 +236,17 @@ def run(
         entropy=main.entropy,
         # meta information
         config=dict(
+            # processes
             n_arms=n_arms,
-            n_budget=n_budget,
             n_states=n_states,
             n_actions=n_actions,
-            discount=float("nan"),
+            noise=noise,
+            # policy
+            n_budget=n_budget,
+            # experiments
             n_experiments=n_experiments,
             n_replications_per_experiment=n_replications_per_experiment,
             n_steps_per_replication=n_steps_per_replication,
-            noise=noise,
         ),
         # save the name of the policy played during the last replication
         policy_name=repr(pol),
