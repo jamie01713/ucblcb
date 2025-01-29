@@ -28,24 +28,24 @@ from ucblcb.experiment.utils import ewmmean, expandingmean
 specs = {
     # random subset and the optimal policy
     "ucblcb.policies.base.RandomSubsetPolicy": {},
-    "ucblcb.policies.whittle.Whittle": {"gamma": [0.99]},  # high discount makes VI slow
+    "ucblcb.policies.whittle.Whittle": {"gamma": [0.9]},  # high discount makes VI slow
     # product of confidence interval incremental reward estimates with greedy policy
     "ucblcb.policies.lcbggt.LGGT": {
         "threshold": [0.1, 0.5],  # assumes reward in `[0, 1]`
     },
     # whittle-index q-learning
     "ucblcb.policies.wiql.WIQL": {
-        "gamma": [0.99],  # discount (was set to one in the original impl)
+        "gamma": [0.9],  # discount (was set to one in the original impl)
         "alpha": [None],  # lr schedule
     },
-    # # UCWhittle-Extreme
-    # "ucblcb.policies.ucw.UCWhittleExtreme": {
-    #     "gamma": [0.99],  # discount (the closer to one, the slower the VI!)
-    # },
-    # # UCWhittle-UCB
-    # "ucblcb.policies.ucw.UCWhittleUCB": {
-    #     "gamma": [0.99],  # discount (the closer to one, the slower the VI!)
-    # },
+    # UCWhittle-Extreme
+    "ucblcb.policies.ucw.UCWhittleExtreme": {
+        "gamma": [0.9],  # discount (the closer to one, the slower the VI!)
+    },
+    # UCWhittle-UCB
+    "ucblcb.policies.ucw.UCWhittleUCB": {
+        "gamma": [0.9],  # discount (the closer to one, the slower the VI!)
+    },
 }
 
 

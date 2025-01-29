@@ -6,12 +6,12 @@ n_population=50
 n_arms=50
 n_replications_per_experiment=11
 n_steps_per_replication=500
-target=./results_xp2
+target=./results_xp2_ucw
 noise=0.0
 
 # grid (whitespace separated strings, or '' for empty)
 n_budgets="5 10 15 20"
-b_good_origin_flags="--no_good_origin ''"
+b_good_origin_flags="--no_good_origin"
 
 # the master entropy of the entire suite of experiments (leave empty for system)
 # entropy=
