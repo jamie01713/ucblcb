@@ -106,7 +106,7 @@ def run(
     sqs_env, sqs_pol = sq_spawn(main, (2, n_experiments))
 
     # get a deterministically chaotic sampler from a pool of the potential MDPs
-    envs = MDP.sampler(sqs_env, kernels, rewards, n_processes=n_processes, noise=noise)
+    envs = MDP.sampler(kernels, rewards, sqs_env, n_processes=n_processes, noise=noise)
 
     # setup a rollout with policy updated inplace online after every step
     seeded_online_episode = partial(
