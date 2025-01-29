@@ -11,7 +11,7 @@ noise=0.0
 
 # grid (whitespace separated strings, or '' for empty)
 n_budgets="5 10 15 20"
-b_good_origin_flags="--no-good-origin ''"
+b_good_origin_flags="--no_good_origin ''"
 
 # the master entropy of the entire suite of experiments (leave empty for system)
 # entropy=

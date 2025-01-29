@@ -210,118 +210,34 @@ def main(
 if __name__ == "__main__":
     # why not use pydantic and manage experiments via json?
     import argparse
+    from ucblcb.config import make
 
     # we allow some limited config through the command line args
-    parser = argparse.ArgumentParser(
-        description="Run experiment one over all policies.", add_help=True
-    )
-    parser.register("type", "hexadecimal", lambda x: int(x, 16) if x else None)
-    parser.register("type", "json", json.loads)
-
-    # the policy and its hyperparameters
-    parser.add_argument(
-        "--path",
-        type=str,
-        default="./",
-        help="The folder to store the resulting pickle and the figures",
-    )
-    parser.add_argument(
-        "--prefix",
-        required=False,
-        type=str,
-        default="",
-        help="extra prefix to add to the filenames",
-    )
-
-    # state, action, and arm space sizes
-    parser.add_argument(
-        "--n_arms",
-        "-N",
-        type=int,
-        default=100,
-        help="The number or arms in the binary MDP environment",
-    )
-
-    # the budget of arms
-    parser.add_argument(
-        "--n_budget",
-        "-B",
-        type=int,
-        default=20,
-        help="The number of arms the policy is allowed to pull at each step",
-    )
-
-    # exepriment parameters and replications
-    parser.add_argument(
-        "--n_steps_per_episode",
-        "-H",
-        type=int,
-        default=20,
-        help="The maximal number of steps in one episodes rollout",
-    )
-    parser.add_argument(
-        "--n_episodes_per_experiment",
-        "-T",
-        type=int,
-        default=500,
-        help="The number of episodes to play in one experiment replication",
-    )
-    parser.add_argument(
-        "--n_experiments",
-        "-E",
-        type=int,
-        default=30,
-        help="The total number of independent replications to run",
-    )
-
-    # diversity and properties of the MDPs
-    parser.add_argument(
-        "--n_population",
-        "-P",
-        type=int,
-        default=100,
-        help="The size of pool of MDP arms from which environment are sampled",
-    )
-    parser.add_argument(
-        "--no-good-to-act",
-        required=False,
-        action="store_true",
-        help="enforce good-to-act peroperty of MDPs",
-    )
-    parser.add_argument(
-        "--no-good-origin",
-        required=False,
-        action="store_true",
-        help="enforce good-origin peroperty of MDPs",
-    )
-    parser.add_argument(
-        "--noise",
-        required=False,
-        type=float,
-        default=0.0,
-        help="Independent gaussian noise added to the reward",
-    )
-
-    # the source of the mdp pool
-    parser.add_argument(
-        "--source",
-        type=str,
-        default="",
-        help="An npz-file to load transitions and rewards from "
-             "(leave empty for random pool).",
-    )
-
-    # override policy specs
-    parser.add_argument("--override", required=False, type="json", default="null")
-
-    # seed
-    parser.add_argument(
-        "--entropy",
-        required=False,
-        type="hexadecimal",
-        # https://www.random.org/cgi-bin/randbyte?nbytes=16&format=h
-        default="75CEF71D882634C09033BC8108F9E0C0",
-        help="128-bit seed for the experiment (leave empty to use system entropy)",
+    parser = make(
+        argparse.ArgumentParser(
+            description="Run experiment one over all policies.", add_help=True
+        ),
+        "path",
+        "prefix",
+        # state, action, and arm space sizes
+        "n_arms",
+        # the budget of arms
+        "n_budget",
+        # exepriment parameters and replications
+        "n_steps_per_episode",
+        "n_episodes_per_experiment",
+        "n_experiments",
+        # diversity and properties of the MDPs
+        "n_population",
+        "no_good_to_act",
+        "no_good_origin",
+        "noise",
+        # the source of the mdp pool
+        "source",
+        # override policy specs
+        "override",
+        # seed
+        "entropy",
     )
 
     # get the namespace with declared cli args, and a list of remaining argument strings
