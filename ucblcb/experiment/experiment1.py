@@ -12,7 +12,8 @@ from collections.abc import Callable
 from ..envs import MDP
 from ..policies.base import BasePolicy
 from ..envs.base import Env
-from .utils import sq_spawn, sneak_peek, snapshot_git, episode
+from .play import episode
+from .utils import sq_spawn, sneak_peek, snapshot_git
 
 
 def pseudocode() -> None:
