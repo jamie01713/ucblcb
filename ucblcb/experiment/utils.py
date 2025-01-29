@@ -18,52 +18,76 @@ from functools import wraps
 from typing import Iterator
 from collections.abc import Callable
 
-from ..envs.base import Env, Observation, Action
+from ..envs.base import Env, Observation, Action, Reward, Done
 from ..policies.base import BasePolicy
 
 
+# (x_t, a_t, r_{t+1}, x_{t+1}, f_{t+1})
+Transtition = tuple[Observation, Action, Reward, Observation, Done]
+
+
 def rollout(
-    env: Env,
-    /,
-    policy: Callable[[Observation], Action],
-    n_steps: int | None = None,
-) -> Iterator[tuple[int, tuple, bool]]:
-    """Play the given policy in the env for n_steps or until termination."""
-    # set the initial rewards to NaN, because `.reset` sort of implies that
-    #  the next `.step` is the VERY first interactions with the MDP. Hence,
-    #  there is simply no reward to be had because of not prior interaction
-    rew_, done, step = np.full(env.n_population, np.nan), False, 0  # r_0
+    env: Env, pol: Callable[[Observation], Action], /, *, auto: bool,
+) -> Iterator[Transtition]:
+    """Play the given policy in the env indefinitely, auto resetting if terminated."""
 
-    # reset the env and get its initial observation
-    obs_, _ = env.reset()  # x_0
-    while (n_steps is None or step < n_steps) and not done:
-        # local time tick `t-1 -> t` (`x` becomes `s`)
-        obs, rew = obs_, rew_  # noqa: F841
-        # XXX `obs`, `act`, `rew`, `obs_`,    `rew_`,    and `fin_` are
-        #     `x_t`, `a_t`, `r_t`, `x_{t+1}`, `r_{t+1}`, and `f_{t+1}`, respectively.
+    # make sure to reset the environment on the VERY first step
+    obs_, done = None, True
+    while True:
+        # local time tick `t-1 -> t` (`x` becomes `s`, and, optionally, env is reset)
+        obs, _ = env.reset() if done else (obs_, {})
 
-        # `act` is `a_t` array of int of shape (P,)
-        # x_t --policy-->> a_t
-        # XXX `policy`, like env, can be stateful
-        act = policy(np.expand_dims(obs, 0))[0]  # XXX single-element batch!
+        # x_t --pol-->> a_t: `act` is a non-batched action in the env `a_t`
+        act = pol(obs)  # XXX `pol`, like `env`, is stateful!
 
-        # (x_t, a_t) --env-->> (r_{t+1}, x_{t+1}, f_{t+1})
-        # XXX `f_{t+1}` indicates if the episode got natually terminated
-        # XXX reward due to `t-1 -> t` transition is not used (`rew`), because
-        #  at state `x_t` we took action `a_t` and got `r_{t+1}` as feedback
-        #  (env's local step ticked from `t` to `t+1`)!
-        obs_, rew_, done, _ = env.step(act)
-
-        step += 1
-
-        # the tri-state `done` flag:
-        #  +1: episode terminated and x_{t+1} is considered terminal
-        #  -1: rollout truncated, but x_{t+1} is non-terminal
-        #   0: neither: trajecory could continue after x_{t+1}
-        fin_ = +1 if done else -1 if step == n_steps else 0
+        # (x_t, a_t) --env-->> (r_{t+1}, x_{t+1}, f_{t+1}), where `f_{t+1}`
+        #   indicates if the env's episode got naturally terminated
+        obs_, rew_, done, _ = env.step(act)  # XXX info dict is not used
 
         # return the x_t, a_t, r_{t+1}, x_{t+1}, f_{t+1} transition
-        yield step, (obs, act, rew_, obs_, fin_), done
+        # XXX reward due to `t-1 -> t` transition is not used, because at state
+        #  `x_t` we took action `a_t` and got `r_{t+1}` as feedback (env's local
+        #  step ticked from `t` to `t+1`)!
+        yield obs, act, rew_, obs_, (+1 if done else 0)
+
+        # break if the env's episode terminated and we are not auto-resetting
+        if done and not auto:
+            return
+
+
+def play(
+    env: Env,
+    pol: Callable[[Observation], Action],
+    /,
+    n_steps: int | None,
+    *,
+    auto: bool,
+) -> Iterator[Transtition]:
+    """Play the policy in the env for n_steps or until termination, unless auto."""
+
+    # launch the transition collection loop, which generates and streams transitions
+    #  under the given policy (which may not be static):
+    #  (x_t, a_t -> r_{t+1}, x_{t+1}, F_{t+1})
+    loop = rollout(env, pol, auto=auto)
+
+    # short-circuit if there is no cap on the number of steps
+    if not isinstance(n_steps, int):
+        yield from loop
+        return
+
+    elif n_steps <= 0:
+        return
+
+    for step, (*sarx, done) in enumerate(loop, 1):
+        # replace the binary `done` data with a the tri-state flag:
+        #  <0: rollout is truncated after x_{t+1}
+        #  =0: trajectory continues after x_{t+1}
+        #  >0: episode has terminated at x_{t+1}
+        yield *sarx, (-1 if step == n_steps else done)
+
+        # terminate if exceeded the steps cap
+        if step >= n_steps:
+            return
 
 
 def episode(
@@ -76,18 +100,22 @@ def episode(
     n_batch_size_per_update: int = 1,
 ) -> ndarray:
     """Online update over one episode for n_steps or until the env terminates."""
+
     assert isinstance(pol, BasePolicy), type(pol)
     assert isinstance(n_steps, int), n_steps
 
-    # the generator `random` is consumed by the policy `.update` and `.decide`!
+    # the generator `random` is consumed by the policy's `.update` and `.decide`
+    #  redefined below
     random = default_rng(random)
 
-    # supply the policy with its own PRNG
-    pol_decide = partial(pol.decide, random)
+    # wrap the single-step observation into a unit-sized batch and decide the action
+    def pol_decide(obs: Observation) -> Action:
+        # side-effects: `random`
+        return pol.decide(random, np.expand_dims(obs, 0))[0]
 
-    # update the policy on the collected transition data
-    def pol_update(batch):
-        # side-effects from outer scope: `pol`, `random`
+    # update the policy on the collected transition batch
+    def pol_update(batch: tuple[Transtition]) -> Transtition:
+        # side-effects: `pol`, `random`
         assert batch
 
         # `pol.update` expects a leading batch dimension, so we unpack
@@ -101,13 +129,14 @@ def episode(
         # keep track of the total reward from the transitions
         return obs, act, rew_, obs_, fin_
 
+    # reward trace and a transition buffer for batched updates (size >= 1)
+    trace, buffer = [], []
+
     # interact with a new mdp env for `n_steps` to generate new experience
     # XXX `rollout` is an ITERATOR FUNCTION, whose body is run concurrently lockstep
-    #  with the body of this for-loop.
-    trace, buffer = [], []
-    for step, sarxf, done in rollout(env, pol_decide, n_steps):
-        # save `sarxf = (x_t, a_t, r_{t+1}, x_{t+1}, f_{t+1})`
-        buffer.append(sarxf)
+    #  with the body of this `for-loop-and-a-half`.
+    for sarxf in play(env, pol_decide, n_steps, auto=False):
+        buffer.append(sarxf)  # save `(x_t, a_t, r_{t+1}, x_{t+1}, f_{t+1})`
         if len(buffer) < n_batch_size_per_update:
             continue
 
@@ -115,7 +144,7 @@ def episode(
         _, _, rew_, _, _ = pol_update(tuple(buffer))
 
         # keep track of the total reward from the transitions
-        trace.append(np.sum(rew_, axis=-1))  # respect the batch dim!
+        trace.append(np.sum(rew_, axis=-1))  # XXX respect the batch dims!
 
         buffer = []
 
@@ -124,6 +153,7 @@ def episode(
         _, _, rew_, _, _ = pol_update(tuple(buffer))
         trace.append(np.sum(rew_, axis=-1))
 
+    # concatenate all the steps
     return np.concatenate(trace)
 
 
