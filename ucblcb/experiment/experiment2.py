@@ -3,7 +3,6 @@ from time import monotonic, strftime
 
 import numpy as np
 from numpy import ndarray
-from jax import tree_util as tu
 
 from functools import partial
 
@@ -15,7 +14,7 @@ from collections.abc import Callable
 from ..envs import MDP
 from ..policies.base import BasePolicy
 from ..envs.base import Env
-from .play import rollout
+from .play import rollout, collate
 from .utils import sq_spawn, sneak_peek, snapshot_git
 
 
@@ -71,10 +70,6 @@ def pseudocode() -> None:
 
                 # step counter
                 t += 1
-
-
-def pytree_collate(items):
-    return tu.tree_map(lambda *x: np.stack(x), *items)
 
 
 def run_one_replication(
@@ -151,7 +146,7 @@ def run_one_experiment(
         replications.append(output)
 
     # collate the replications
-    return pol, pytree_collate(replications)
+    return pol, collate(replications)
 
 
 def run_all_experiments(
@@ -186,7 +181,7 @@ def run_all_experiments(
         experiments.append(output)
 
     # collate the experiments
-    return pol, pytree_collate(experiments)
+    return pol, collate(experiments)
 
 
 def run(

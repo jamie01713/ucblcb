@@ -3,11 +3,19 @@
 import numpy as np
 from numpy.random import default_rng, Generator, SeedSequence
 
-from typing import Iterator, Iterable
+from jax import tree_util as tu
+
+from typing import Iterator, Iterable, Any
 from collections.abc import Callable
 
 from ..envs.base import Env, Observation, Action, Reward, Done
 from ..policies.base import BasePolicy
+
+
+def collate(pytrees: list[Any]) -> Any:
+    """Collate pytrees with array-like leaves preserving tree structure"""
+
+    return tu.tree_map(lambda *x: np.stack(x), *pytrees)
 
 
 def batched(iterable: Iterable, n: int) -> Iterable:
@@ -93,7 +101,7 @@ def rollout(
     # wrap the single-step observation into a unit-sized batch and decide the action
     def pol_decide(obs: Observation) -> Action:
         # side-effects: `random` (`pol` should not be updated in-place by .decide)
-        singleton = np.expand_dims(obs, 0)
+        singleton = tu.tree_map(lambda x: np.expand_dims(x, 0), obs)
         return pol.decide(random, singleton)[0]
 
     # launch the transition collection loop: it play the policy in the env and
@@ -106,7 +114,7 @@ def rollout(
     # XXX batch[j] is `(x^j_t, a^j_t, r^j_{t+1}, x^j_{t+1}, F^j_{t+1})`
     for batch in batched(liveloop, n_steps_per_update):
         # `pol.update` expects a leading batch dimension, so we unpack and stack
-        obs, act, rew_, obs_, done = map(np.stack, zip(*batch))
+        obs, act, rew_, obs_, done = collate(batch)
 
         # update of `pol` with the observed ON-POLICY `sarx` transition data
         # XXX `pol` is updated INPLACE, and `random` is consumed!
