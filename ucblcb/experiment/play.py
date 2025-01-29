@@ -58,7 +58,7 @@ def play(
         #  <0: rollout is truncated after x_{t+1}
         #  =0: trajectory continues after x_{t+1}
         #  >0: episode has terminated at x_{t+1}
-        done = (-1 if step == n_steps else +1 if done else 0)
+        done = -1 if step == n_steps else +1 if done else 0
 
         # return the x_t, a_t, r_{t+1}, x_{t+1}, F_{t+1} transition
         # XXX reward due to `t-1 -> t` transition is not used, because at state
@@ -81,8 +81,7 @@ def rollout(
     auto: bool = False,
     n_steps_per_update: int = 1,
 ) -> Iterator[Transtition]:
-    """Do on-policy update over the online rollout, streaming consecutive transitions.
-    """
+    """Do on-policy update over the online rollout, streaming consecutive transitions."""
 
     assert n_steps is None or isinstance(n_steps, int), n_steps
     assert isinstance(pol, BasePolicy), type(pol)

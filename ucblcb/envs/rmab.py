@@ -1,5 +1,6 @@
 """Routines to sample and verify binary batched MDPs for Restless MABs.
 """
+
 import warnings
 
 import numpy as np
@@ -78,7 +79,12 @@ def binary_rmab_from_nasx_npz(npz: str, /, **ignore) -> tuple[ndarray, ndarray]:
 
 
 def binary_rmab_sampler(
-    random: Generator, /, transitions, n_processes: int = None, *, noise: float = 0.0,
+    random: Generator,
+    /,
+    transitions,
+    n_processes: int = None,
+    *,
+    noise: float = 0.0,
 ) -> Iterator[MDP]:
     """Sampler for binary RMAB problems with good transition."""
     raise RuntimeError("do not use")
@@ -111,7 +117,12 @@ def binary_rmab_sampler(
 
 
 def binary_rmab_sampler_expected(
-    random: Generator, /, transitions, n_processes: int = None, *, noise: float = 0.0,
+    random: Generator,
+    /,
+    transitions,
+    n_processes: int = None,
+    *,
+    noise: float = 0.0,
 ) -> Iterator[MDP]:
     """Sampler for binary RMAB problems with good transition."""
     raise RuntimeError("do not use")
