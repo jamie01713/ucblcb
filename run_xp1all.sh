@@ -6,12 +6,12 @@ n_population=50
 n_arms=50
 n_episodes_per_experiment=1
 n_steps_per_episode=500
-target=./results
+target=./results_new
 noise=0.0
 
 # grid (whitespace separated strings, or '' for empty)
 n_budgets="5 10 15 20"
-b_good_origin_flags="--no-good-origin ''"
+b_good_origin_flags="--no_good_origin ''"
 
 # the master entropy of the entire suite of experiments (leave empty for system)
 # entropy=
