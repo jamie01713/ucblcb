@@ -46,6 +46,10 @@ specs = {
     "ucblcb.policies.ucw.UCWhittleUCB": {
         "gamma": [0.9],  # discount (the closer to one, the slower the VI!)
     },
+    # # UCWhittle-Pv
+    # "ucblcb.policies.ucw.UCWhittlePv": {
+    #     "gamma": [0.9],  # discount (the closer to one, the slower the VI!)
+    # },
 }
 
 
@@ -90,6 +94,7 @@ def main(
     # the total number of steps in each replication
     n_steps_per_replication: int = 500,
     # other
+    avg_over_experiments: bool = False,
     **ignore,
 ):
     if ignore:
@@ -192,12 +197,16 @@ def main(
 
             # cumulative reward over the trajectories
             acr_ert = expandingmean(result["rewards"], axis=-1)
+            if not avg_over_experiments:
+                # plot averaged dynamics for each experiments
+                avg_acr_et = acr_ert.mean(axis=-2)
+                line, *_ = ax.plot(avg_acr_et.T, color=col, alpha=0.5)
 
-            # average over replications
-            avg_acr_et = acr_ert.mean(axis=-2)
+            else:
+                # plot averaged dynamics for all experiments
+                avg_acr_t = acr_ert.mean(axis=(-3, -2))
+                line, *_ = ax.plot(avg_acr_t, color=col, alpha=0.5)
 
-            # plot averaged dynamics for all experiments
-            line, *_ = ax.plot(avg_acr_et.T, color=col, alpha=0.5)
             legend.append((line, output["policy_name"]))
 
         # create the legend
@@ -223,13 +232,17 @@ def main(
             result = output["results"]  # (E, R, T)
 
             # cumulative reward over the trajectories
-            acr_ert = ewmmean(result["rewards"], alpha=ewm_alpha, axis=-1)
+            asr_ert = ewmmean(result["rewards"], alpha=ewm_alpha, axis=-1)
+            if not avg_over_experiments:
+                # plot averaged dynamics for each experiment
+                avg_asr_et = asr_ert.mean(axis=-2)
+                line, *_ = ax.plot(avg_asr_et.T, color=col, alpha=0.5)
 
-            # average over replications
-            avg_acr_et = acr_ert.mean(axis=-2)
+            else:
+                # plot average dynamics over all experiments
+                avg_asr_t = asr_ert.mean(axis=(-3, -2))
+                line, *_ = ax.plot(avg_asr_t, color=col, alpha=0.5)
 
-            # plot averaged dynamics for all experiments
-            line, *_ = ax.plot(avg_acr_et.T, color=col, alpha=0.5)
             legend.append((line, output["policy_name"]))
 
         # create the legend
