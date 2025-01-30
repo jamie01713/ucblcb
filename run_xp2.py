@@ -188,6 +188,9 @@ def main(
     with open(data_pkl, "rb") as pkl:
         results = pickle.load(pkl)
 
+    # automatically average in the noisy case
+    do_average = avg_over_experiments or noise > 0
+
     # save the pdf for the average cumulative reward
     fig, ax = plt.subplots(1, 1, dpi=120, figsize=(7, 4))
     with mpl.rc_context({"legend.fontsize": "x-small"}):
@@ -197,15 +200,15 @@ def main(
 
             # cumulative reward over the trajectories
             acr_ert = expandingmean(result["rewards"], axis=-1)
-            if not avg_over_experiments:
+            if do_average:
+                # plot averaged dynamics over all experiments
+                avg_acr_t = acr_ert.mean(axis=(-3, -2))
+                line, *_ = ax.plot(avg_acr_t, color=col, alpha=0.5)
+
+            else:
                 # plot averaged dynamics for each experiments
                 avg_acr_et = acr_ert.mean(axis=-2)
                 line, *_ = ax.plot(avg_acr_et.T, color=col, alpha=0.5)
-
-            else:
-                # plot averaged dynamics for all experiments
-                avg_acr_t = acr_ert.mean(axis=(-3, -2))
-                line, *_ = ax.plot(avg_acr_t, color=col, alpha=0.5)
 
             legend.append((line, output["policy_name"]))
 
@@ -233,15 +236,15 @@ def main(
 
             # cumulative reward over the trajectories
             asr_ert = ewmmean(result["rewards"], alpha=ewm_alpha, axis=-1)
-            if not avg_over_experiments:
-                # plot averaged dynamics for each experiment
-                avg_asr_et = asr_ert.mean(axis=-2)
-                line, *_ = ax.plot(avg_asr_et.T, color=col, alpha=0.5)
-
-            else:
+            if do_average:
                 # plot average dynamics over all experiments
                 avg_asr_t = asr_ert.mean(axis=(-3, -2))
                 line, *_ = ax.plot(avg_asr_t, color=col, alpha=0.5)
+
+            else:
+                # plot averaged dynamics for each experiment
+                avg_asr_et = asr_ert.mean(axis=-2)
+                line, *_ = ax.plot(avg_asr_et.T, color=col, alpha=0.5)
 
             legend.append((line, output["policy_name"]))
 
