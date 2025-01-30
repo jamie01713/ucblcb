@@ -294,6 +294,8 @@ if __name__ == "__main__":
         "override",
         # seed
         "entropy",
+        # extra options
+        "avg_over_experiments",
     )
 
     # get the namespace with declared cli args, and a list of remaining argument strings
