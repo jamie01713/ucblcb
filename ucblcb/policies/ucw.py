@@ -547,6 +547,9 @@ def pv_problem_grb_oracle(
 
     # define the objective
     m.setObjective(sum(V.values()), GRB.MAXIMIZE)
+    # rho = m.addVar(name="rho")
+    # m.addConstrs((rho <= V[k, s] for k in Arms for s in States), name="min_v")
+    # m.setObjective(rho, GRB.MAXIMIZE)
 
     # solve
     m.optimize()
