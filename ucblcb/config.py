@@ -155,6 +155,16 @@ def no_good_origin(p, /, default: bool = False) -> None:
 
 
 @allow
+def avg_over_experiments(p, /, default: bool = False) -> None:
+    p.add_argument(
+        "--avg_over_experiments",
+        required=False,
+        action="store_true",
+        help="Average over the experiment re-runs as well",
+    )
+
+
+@allow
 def noise(p, /, default: float = 0.0) -> None:
     p.add_argument(
         "--noise",
