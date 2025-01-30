@@ -84,7 +84,7 @@ class WIQL(BasePolicy):
         *,
         random: Generator = None,
     ) -> None:
-        super().__init__(n_max_steps, budget, n_states)
+        super().__init__(n_max_steps, budget, n_states, random=random)
 
         # the lerarning rate (None for the schedule from the paper)
         assert alpha is None or 0 <= alpha <= 1

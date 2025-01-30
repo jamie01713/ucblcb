@@ -31,7 +31,6 @@ def ucb(n_kas, T: int, /, C: float = 1.0, delta: float = 1e-3):
 
 class BaseUCWhittle(Whittle):
     n_actions: int = 2  # binary
-    alpha: float | None
     gamma: float
 
     # hidden parameter
@@ -53,6 +52,31 @@ class BaseUCWhittle(Whittle):
 
     # disable sneak-peek
     sneak_peek = None
+
+    def __init__(
+        self,
+        n_max_steps: int | None,
+        budget: int,
+        n_states: int,
+        /,
+        gamma: float,
+        C: float = 1.0,
+        n_horizon: int = 20,
+        *,
+        random: Generator = None,
+    ) -> None:
+        super().__init__(n_max_steps, budget, n_states, gamma, random=random)
+
+        assert isinstance(C, float) and C > 0
+        self.C = C
+
+        assert isinstance(n_horizon, int) and n_horizon > 0
+        self.n_horizon = n_horizon
+
+    def __repr__(self) -> str:
+        # we report gamma (rl) as beta (contol theory)
+        parstr = f"($\\beta$={self.gamma}, H={self.n_horizon}, C={self.C})"
+        return type(self).__name__ + parstr
 
     def setup_impl(self, /, obs, act, rew, new, fin, *, random: Generator = None):
         """Initialize the ucb-lcb state from the transition."""
@@ -115,7 +139,7 @@ class BaseUCWhittle(Whittle):
 
 class UCWhittleExtreme(BaseUCWhittle):
     def compute_whittle(self):
-        ub_kas = ucb(self.n_kas_, self.n_max_steps)
+        ub_kas = ucb(self.n_kas_, self.n_max_steps, C=self.C)
         xtreme = np.stack(
             (
                 self.p_kas1_[:, 0, :] - ub_kas[:, 0, :],  # lcb for passive
@@ -138,7 +162,7 @@ class UCWhittleExtreme(BaseUCWhittle):
 
 class UCWhittleUCB(BaseUCWhittle):
     def compute_whittle(self):
-        ub_kas = ucb(self.n_kas_, self.n_max_steps)
+        ub_kas = ucb(self.n_kas_, self.n_max_steps, C=self.C)
 
         # clip and make into a proper Markov kernel
         p_kas1 = np.clip(self.p_kas1_ + ub_kas, 0, 1)
@@ -256,10 +280,26 @@ def pv_problem_grb(
 
 
 class UCWhittlePv(BaseUCWhittle):
-    n_horizon: int = 20
+    def __init__(
+        self,
+        n_max_steps: int | None,
+        budget: int,
+        n_states: int,
+        /,
+        gamma: float,
+        C: float = 1.0,
+        *,
+        random: Generator = None,
+    ) -> None:
+        super().__init__(
+            n_max_steps, budget, n_states, gamma, C, n_horizon=20, random=random
+        )
+
+        assert isinstance(C, float) and C > 0
+        self.C = C
 
     def compute_whittle(self):
-        ub_kas = ucb(self.n_kas_, self.n_updates_, C=0.1)  # narrower CI
+        ub_kas = ucb(self.n_kas_, self.n_updates_, C=self.C)  # narrower CI
 
         # plrepare the feasible transition box
         p_lb = np.clip(self.p_kas1_ - ub_kas, 0, 1)

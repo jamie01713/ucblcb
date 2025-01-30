@@ -502,7 +502,7 @@ class Whittle(BasePolicy):
         *,
         random: Generator = None,
     ) -> None:
-        super().__init__(n_max_steps, budget, n_states)
+        super().__init__(n_max_steps, budget, n_states, random=random)
 
         assert isinstance(gamma, float) and 0 <= gamma < 1
         self.gamma = gamma
