@@ -8,6 +8,8 @@ from gurobipy import GRB
 
 from .whittle import Whittle, batched_whittle_vi_inf_bisect
 
+from ..envs.mdp import MDP
+
 
 def ucb(n_kas, T: int, /, C: float = 1.0, delta: float = 1e-3):
     """UCB adjustment for probability estimates."""
@@ -430,6 +432,180 @@ class UCWhittlePv(BaseUCWhittle):
 
         # compute the whittle index for all arms and all states
         p_kasx = np.stack((1 - self.p_opt_, self.p_opt_), axis=-1)  # -> kasx
+        _, lam_ks_, _ = batched_whittle_vi_inf_bisect(p_kasx, r_kasx, gam=self.gamma)
+        self.whittle_ks_ = np.asarray(lam_ks_)
+
+        return self
+
+
+def pv_problem_grb_oracle(
+    x0: ndarray,
+    p_k0s1: ndarray,
+    lb_k1s1: ndarray,
+    ub_k1s1: ndarray,
+    /,
+    rew: ndarray,
+    *,
+    gam: float,
+) -> gp.Model:
+    r"""Solve the Pv-problem from [1]_ with pre-adjusted rewards and frozen
+    :math:`p_k(x=1 \mid s, a=0)`.
+
+    Notes
+    -----
+    The problem is
+
+    .. math::
+        \mathcal{P}_v
+            = \max_{v, p} \bigl\{
+                \sum_s w_s v(s)
+                \colon v = \max_a T^p_a v
+                \,, p \in \mathcal{P}
+                \,, p_{k0sx} \text{ fixed}
+                \,, T^p_a v[s]  % <<-- bellman backup for playing a at s
+                    = \mathbb{E}_{p(r, x\mid s, a)} r + \gamma v(x)
+            \bigr\}
+            \,.
+
+    References
+    ----------
+    .. [1] Wang, Kai, Lily Xu, Aparna Taneja, and Milind Tambe, (2023) "Optimistic
+       whittle index policy: Online learning for restless bandits." In Proceedings
+       of the AAAI Conference on Artificial Intelligence, vol. 37, no. 8,
+       pp. 10131-10139.
+       https://ojs.aaai.org/index.php/AAAI/article/view/26207
+    """
+
+    x0, p_k0s1, lb_k1s1, ub_k1s1 = np.broadcast_arrays(x0, p_k0s1, lb_k1s1, ub_k1s1)
+    batch, n_states = lb_k1s1.shape
+    assert n_states == 2, lb_k1s1.shape
+    assert np.all(lb_k1s1 <= ub_k1s1)
+    assert np.all((lb_k1s1 <= x0) & (x0 <= ub_k1s1))
+
+    Arms, States = tuple(range(batch)), (0, 1)
+
+    m = gp.Model("UCW-Pv+Priv")
+    m.setParam("OutputFlag", 0)
+    m.setParam("NonConvex", 2)  # nonconvex constraints
+    m.setParam("IterationLimit", 100)  # limit number of simplex iterations
+
+    # `p_{k1s} \in [l_{k1s}, u_{k1s}]` is the probability `p(x=1 | s, a=1)`
+    p_k1s1 = m.addVars(
+        Arms,
+        States,
+        lb=np.clip(lb_k1s1.ravel(), 0.0, 1.0),
+        ub=np.clip(lb_k1s1.ravel(), 0.0, 1.0),
+        vtype=GRB.CONTINUOUS,
+        name="p",
+    )
+    for k, v in p_k1s1.items():
+        v.Start = x0[k]
+
+    # `v_{s}` is the value function `v(s)`
+    V = m.addVars(Arms, States, vtype=GRB.CONTINUOUS, name="V")
+
+    # `q_{0s}` is the value function `q(s, a=0)`
+    Q0 = m.addVars(Arms, States, vtype=GRB.CONTINUOUS, name="Q0")
+    m.addConstrs(
+        (
+            (
+                # (rew[k, 0, s, 0] + gam * V[k, 0]) * (1 - p_k0s1[k, s])
+                # + (rew[k, 0, s, 1] + gam * V[k, 1]) * p_k0s1[k, s]
+                rew[k, 0, s, 0]
+                + p_k0s1[k, s] * (rew[k, 0, s, 1] - rew[k, 0, s, 0])
+                + gam * (V[k, 0] + p_k0s1[k, s] * (V[k, 1] - V[k, 0]))
+            )
+            == Q0[k, s]
+            for k in Arms
+            for s in States
+        ),
+        name="q0_defn",
+    )
+
+    # `q_{1s}` is the value function `q(s, a=1)`
+    Q1 = m.addVars(Arms, States, vtype=GRB.CONTINUOUS, name="Q1")
+    m.addConstrs(
+        (
+            (
+                (rew[k, 1, s, 0] + gam * V[k, 0]) * (1 - p_k1s1[k, s])
+                + (rew[k, 1, s, 1] + gam * V[k, 1]) * p_k1s1[k, s]
+            )
+            == Q1[k, s]
+            for k in Arms
+            for s in States
+        ),
+        name="q1_defn",
+    )
+
+    # Bellman eqn. constraints `v_k(s) = \max_a \tilde{T}^{p_k}_a v_k[s]` where
+    #     \tilde{T}^p_a J[s]
+    #         = E_{p(x| a, s)} r(a, s, x) - \lambda_{ks} 1_{a==1} + \gamma J(x)
+    m.addConstrs(
+        (V[k, s] == gp.max_([Q0[k, s], Q1[k, s]]) for k in Arms for s in States),
+        name="bellman",
+    )
+
+    # define the objective
+    m.setObjective(sum(V.values()), GRB.MAXIMIZE)
+
+    # solve
+    m.optimize()
+
+    return np.reshape([v.x for v in p_k1s1.values()], lb_k1s1.shape)
+
+
+class UCWhittlePvPriv(UCWhittlePv):
+    def sneak_peek(self, env, /) -> None:
+        """Break open the black box and rummage in it for unfair advantage.
+
+        Notes
+        -----
+        Make sure NOT to reset the GT advantage in `setup_impl` if `sneak-peek`
+        is called before the very first update (which automatically does setup).
+        """
+
+        # ideally, whatever we get a hold of here should be estimated from some
+        #  sample collected burn-in period by standard means
+        if not isinstance(env, MDP):
+            raise NotImplementedError(type(env))
+
+        # Get the true transition probability `p_k(x=1 \mid a=0, s)` from arm `k`
+        #  at state `s` to state `x=1` if it is not pulled `a=0`
+        self.p_k0s1_ = env.kernels[:, 0, :, 1]  # XXX (N, S)
+
+    def compute_whittle(self):
+        ub_kas = ucb(self.n_kas_, self.n_updates_, C=self.C)
+
+        # plrepare the feasible transition box
+        lb_k1s1 = np.clip(self.p_kas1_ - ub_kas, 0, 1)[:, 1, :]
+        ub_k1s1 = np.clip(self.p_kas1_ + ub_kas, 0, 1)[:, 1, :]
+        if not hasattr(self, "p_opt_"):
+            self.p_opt_ = (lb_k1s1 + ub_k1s1) / 2
+
+        # project into the new box
+        p_opt_ = np.clip(self.p_opt_, lb_k1s1, ub_k1s1)
+
+        # split arms into chunks and solve Pv for each
+        r_kasx = np.broadcast_to(np.r_[0.0, 1.0], (*self.p_kas1_.shape, 2))
+
+        sols, p1, n_chunk_size = [], 0, 5  # 8n < 200 (upper limit for nonlin cons)
+        while p1 < len(self.p_kas1_):
+            p0, p1 = p1, p1 + n_chunk_size
+            sol = pv_problem_grb_oracle(
+                p_opt_[p0:p1],
+                self.p_k0s1_[p0:p1],
+                lb_k1s1[p0:p1],
+                ub_k1s1[p0:p1],
+                r_kasx[p0:p1],
+                gam=self.gamma,
+            )
+            sols.append(sol)
+
+        self.p_opt_ = np.concatenate(sols, axis=0)  # (N, S) p_k(x=1 \mid s, a=1)
+
+        # compute the whittle index for all arms and all states
+        p_kas1 = np.stack((self.p_k0s1_, self.p_opt_), axis=-2)  # (N, A, S)
+        p_kasx = np.stack((1 - p_kas1, p_kas1), axis=-1)  # -> kasx
         _, lam_ks_, _ = batched_whittle_vi_inf_bisect(p_kasx, r_kasx, gam=self.gamma)
         self.whittle_ks_ = np.asarray(lam_ks_)
 
