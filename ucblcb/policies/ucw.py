@@ -95,7 +95,9 @@ class BaseUCWhittle(Whittle):
 
     def update_impl(self, /, obs, act, rew, new, fin, *, random: Generator = None):
         """Update the q-function estimate on the batch of transitions."""
-        self.replay_.append((obs, act, rew, new, fin))
+
+        # collect the transitions into a buffer to be used for an all-at-once update
+        self.replay_.append((obs, act, rew, new, fin))  # `(b, ...)`
         n_experience = sum(len(x) for x, *_ in self.replay_)
         if n_experience < self.n_horizon:
             return self
@@ -179,8 +181,11 @@ class UCWhittleUCB(BaseUCWhittle):
 def pv_problem_grb(
     p0: ndarray, p_lb: ndarray, p_ub: ndarray, /, rew: ndarray, *, gam: float
 ) -> gp.Model:
-    r"""
-    Due to the extermal solver, the :math:`\mathcal{P}_v` problem
+    r"""Solve the Pv-problem from [1]_ with pre-adjusted rewards.
+
+    Notes
+    -----
+    Due to the extermal slow-ish solver, the :math:`\mathcal{P}_v` problem
 
     .. math::
         \mathcal{P}_v
@@ -188,16 +193,23 @@ def pv_problem_grb(
                 \sum_s w_s v(s)
                 \colon v = \max_a T^p_a v
                 \,, p \in \mathcal{P}
-                \,, T^p_a v[s]
+                \,, T^p_a v[s]  % <<-- bellman backup for playing a at s
                     = \mathbb{E}_{p(r, x\mid s, a)} r + \gamma v(x)
             \bigr\}
             \,,
 
-    followed by Biscet-VI Whittle is faster, than the subsidy problem
-    :math:`\mathcal{P}_m`.
-
+    followed by the Bisect-VI Whittle seems to be faster and more stable, than
+    the subsidy problem :math:`\mathcal{P}_m`, despite sec 5.4 from [1]_
     > Computing a Whittle index involves binary search, solving value iteration
       at every step, so is quite computationally expensive.
+
+    References
+    ----------
+    .. [1] Wang, Kai, Lily Xu, Aparna Taneja, and Milind Tambe, (2023) "Optimistic
+       whittle index policy: Online learning for restless bandits." In Proceedings
+       of the AAAI Conference on Artificial Intelligence, vol. 37, no. 8,
+       pp. 10131-10139.
+       https://ojs.aaai.org/index.php/AAAI/article/view/26207
     """
     p0, p_lb, p_ub = np.broadcast_arrays(p0, p_lb, p_ub)
     batch, n_actions, n_states = p_lb.shape
@@ -280,6 +292,82 @@ def pv_problem_grb(
 
 
 class UCWhittlePv(BaseUCWhittle):
+    r"""Upper Confidence Whittle policy with Pv problem for optimistic transition
+    probabilities within the confidence box followed by Bisect-VI whittle index
+    computation.
+
+    Notes
+    -----
+    The policy interacts in the env for no more no less than :math:`T` -- the maximal
+    allotted budget of interactions in the environment. :math:`T` is directly related
+    to sample complexity and the :math:`T` used in regret bounds. After every
+    interaction (assuming non-batched rollout, see `play.py:rollout`), the policy
+    receives (via `.update`) the observed transition :math:`s_t, a_t \to r_t, s_{t+1}`
+    form the environment. Now it is up to the policy's internal logic to decide what
+    to do with this new observation. Some policies, like `Whittle` ignore this data,
+    because they are privy to the privileged information about the true Markov kernel
+    :math:`p_K(x\mid s, a)` and the true reward function :math:`r(s, a, x)` from the
+    environment itself (see `sneak_peek`). Other policies, like WIQL and LGGT, use
+    this transition to __immediately__ update their internal state (e.g. incremental
+    averages, q-function estimates etc.).
+
+    The UCW-family of policies, however, instead of updating immediately, stores
+    this new transition in an experience replay buffer [2]_. The buffer is not used
+    for more sample off-policy updates, but rather for delaying the full update and
+    re-computation of the Whittle indices. Thus, despite interacting with the env
+    on every step, the UCW policy, unlike the bove mentioned policies, updates
+    itself every `n_horizon` step (i.e. when the buffer overflows). This means
+    that during these `n_horizon` steps, UCW pulls the arms based on slightly stale,
+    un-updated, whittle subsidies.
+
+    This is a minor refactor of the pseudocode from [1]_ sec. 5. Key change is
+    that the concept of episodes is abandoned, and, instead, the policy's stepping
+    is tied to the global number of interactions in the env (via `env.step`).
+
+    This is the pseudocode of this implementation in terms of the lines of the
+    pseudocode in [1]_:
+        1. initialize :math:`\pi^{(0)}` to a random subset policy
+        2. set the whittle subsidies :math:`\lambda^{(0)}` to zero
+        3. set :math:`\tau = 0`
+        4. for t = 0, 1, 2, ... do
+           41. step through env with the current :math:`\pi^{(\tau)}` collecting
+               the t-th `sa -> rx` transition into the buffer
+               - line 8 (the about H-steps)
+           42. if :math:`t < (\tau + 1) H`, goto next iteration of the loop 4.
+           43. update the running :math:`\hat{p}_k(x=1\mid s, a)` estimate and the
+               state-action counters :math:`n_k(s, a)` on the data from the buffer
+               - line 9
+           44. reset the buffer
+           45. solve the :math:`\mathcal{P}_v` problem for the new confidence
+               box and retrieve the optimistic :math:`p_k(x=1\mid s, a)` solution
+               - line 6
+           46. compute the whittle indices :math:`S \mapsto \lambda_{ks}` using
+               Bisect-VI (see `whittle.py`)
+               - line 7 (unclear at which state the top-k lambda on line 10)
+           47. compute the :math:`\pi^{(\tau+1)}` and increment :math:`\tau`
+
+    The next change is related our introduction a multiplier for the UCB, which
+    is :math:`C=1` in [1]_ eqn. (9). We noticed that the confidence box for the
+    transition probability estimate is so large, as to frequently getting clipped
+    by :math:`[0, 1]^{K \lvert S \rvert \lvert A \rvert}`. This dramatically slowed
+    down the convergence of the UCW-policy. By using the valeu of :math:`\frac{1}{C}`
+    we manged to recover competitive performance of the UCW-family.
+
+    References
+    ----------
+    .. [1] Wang, Kai, Lily Xu, Aparna Taneja, and Milind Tambe, (2023) "Optimistic
+       whittle index policy: Online learning for restless bandits." In Proceedings
+       of the AAAI Conference on Artificial Intelligence, vol. 37, no. 8,
+       pp. 10131-10139.
+       https://ojs.aaai.org/index.php/AAAI/article/view/26207
+
+    .. [2] William Fedus, Prajit Ramachandran, Rishabh Agarwal, Yoshua Bengio,
+       Hugo Larochelle, Mark Rowland, Will Dabney, (2020) "Revisiting Fundamentals
+       of Experience Replay" Proceedings of the 37th International Conference on
+       Machine Learning, PMLR 119:3061-3071, 2020.
+       https://proceedings.mlr.press/v119/fedus20a.html
+    """
+
     def __init__(
         self,
         n_max_steps: int | None,
@@ -287,7 +375,7 @@ class UCWhittlePv(BaseUCWhittle):
         n_states: int,
         /,
         gamma: float,
-        C: float = 1.0,
+        C: float = 0.1,
         *,
         random: Generator = None,
     ) -> None:
