@@ -313,19 +313,21 @@ class UCWhittlePv(BaseUCWhittle):
 
     The UCW-family of policies, however, instead of updating immediately, stores
     this new transition in an experience replay buffer [2]_. The buffer is not used
-    for more sample off-policy updates, but rather for delaying the full update and
-    re-computation of the Whittle indices. Thus, despite interacting with the env
-    on every step, the UCW policy, unlike the bove mentioned policies, updates
-    itself every `n_horizon` step (i.e. when the buffer overflows). This means
-    that during these `n_horizon` steps, UCW pulls the arms based on slightly stale,
-    un-updated, whittle subsidies.
+    as dataset of past interactions for off-policy updates [3]_ (ch. 11), but rather
+    for delaying the full update and re-computing of the Whittle indices. Thus,
+    despite interacting with the env on __every__ step, the UCW policy, unlike the
+    above mentioned ones, updates itself only every `n_horizon` steps (i.e. when
+    the experience buffer overflows). This means that during these `n_horizon` steps,
+    UCW pulls the arms based on slightly stale, un-updated whittle subsidies. This
+    keeps the algorithm on-policy with policy improvement steps.
 
-    This is a minor refactor of the pseudocode from [1]_ sec. 5. Key change is
+    This is a minor refactor of the pseudocode from [1]_ sec. 5. The first change is
     that the concept of episodes is abandoned, and, instead, the policy's stepping
     is tied to the global number of interactions in the env (via `env.step`).
 
     This is the pseudocode of this implementation in terms of the lines of the
     pseudocode in [1]_:
+
         1. initialize :math:`\pi^{(0)}` to a random subset policy
         2. set the whittle subsidies :math:`\lambda^{(0)}` to zero
         3. set :math:`\tau = 0`
@@ -346,12 +348,20 @@ class UCWhittlePv(BaseUCWhittle):
                - line 7 (unclear at which state the top-k lambda on line 10)
            47. compute the :math:`\pi^{(\tau+1)}` and increment :math:`\tau`
 
-    The next change is related our introduction a multiplier for the UCB, which
+    The second change is related our introduction a multiplier for the UCB, which
     is :math:`C=1` in [1]_ eqn. (9). We noticed that the confidence box for the
     transition probability estimate is so large, as to frequently getting clipped
     by :math:`[0, 1]^{K \lvert S \rvert \lvert A \rvert}`. This dramatically slowed
-    down the convergence of the UCW-policy. By using the valeu of :math:`\frac{1}{C}`
+    down the convergence of the UCW-policy. By using the value of :math:`\frac{1}{10}`
     we manged to recover competitive performance of the UCW-family.
+
+    Finally, as of 2025-01-30, this implementation forces :math:`\lambda` in
+    :math:`\mathcal{P}_v` of [1]_ to zero because from their pseudocode the meaning
+    of top-:math:`k` of :math:`\lambda` is unclear, because in order to be playable
+    by the policy on line 8 of their pseudocode, the whittle index of the k-th arm
+    must be computed for all potential :math:`S` states of that arm. Lucky for us,
+    the :math:`p \in \arg\max_{p_{kas} \in [u_{kas}, l_{kas}]} \mathcal{P}_v(p)`
+    with :math:`\lambda = 0` already yields competitive performance.
 
     References
     ----------
@@ -366,6 +376,9 @@ class UCWhittlePv(BaseUCWhittle):
        of Experience Replay" Proceedings of the 37th International Conference on
        Machine Learning, PMLR 119:3061-3071, 2020.
        https://proceedings.mlr.press/v119/fedus20a.html
+
+    .. [3] Richard S. Sutton, Andrew G. Barto (2018) "Reinforcement Learning:
+       An Introduction" Second edition, MIT Press, 2018, ISBN 9780262352703
     """
 
     def __init__(
