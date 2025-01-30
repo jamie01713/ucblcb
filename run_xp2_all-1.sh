@@ -25,9 +25,9 @@ spec_override='{
     "ucblcb.policies.wiql.WIQL": {"gamma": [0.9], "alpha": [null]},
     "ucblcb.policies.whittle.Whittle": {"gamma": [0.9]},
     "ucblcb.policies.ucw.UCWhittleExtreme": {"gamma": [0.9], "C": [0.5]},
-    "ucblcb.policies.ucw.UCWhittleUCB": {"gamma": [0.9], "C": [0.5]}
+    "ucblcb.policies.ucw.UCWhittleUCB": {"gamma": [0.9], "C": [0.5]},
+    "ucblcb.policies.ucw.UCWhittlePv": {"gamma": [0.9], "C": [0.5]}
 }'
-# "ucblcb.policies.ucw.UCWhittlePv": {"gamma": [0.9], "C": [0.1, 0.5]},
 
 # budgets
 for n_budget in $n_budgets; do
