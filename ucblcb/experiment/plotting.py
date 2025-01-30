@@ -44,7 +44,7 @@ def plot_average_cumulative_reward(results, *, C: float = 0.0, ax=None) -> plt.A
         plot_one_average_cumulative_reward(res, C=C, ax=ax)
 
     # add all the aesthetics
-    ax.set_title("N={n_processes} B={n_budget} E={n_experiments}".format_map(res))
+    ax.set_title("M={n_processes} B={n_budget} E={n_experiments}".format_map(res))
     ax.set_xlabel(
         "step $t$ ({n_episodes_per_experiment} episodes "
         "x {n_steps_per_episode} steps)".format_map(res)
@@ -99,7 +99,7 @@ def plot_average_reward(
         plot_one_average_reward(res, alpha=alpha, C=C, ax=ax)
 
     # add all the aesthetics
-    ax.set_title("N={n_processes} B={n_budget} E={n_experiments}".format_map(res))
+    ax.set_title("M={n_processes} B={n_budget} E={n_experiments}".format_map(res))
     ax.set_xlabel(
         "step $t$ ({n_episodes_per_experiment} episodes "
         "x {n_steps_per_episode} steps)".format_map(res)

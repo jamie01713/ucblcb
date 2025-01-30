@@ -133,7 +133,7 @@ def main(
     tag = "__".join(
         [
             f"P{n_population}",
-            f"N{n_arms}",
+            f"M{n_arms}",
             f"{noise!s}",
             f"B{n_budget}",
             f"E{n_experiments}",
@@ -205,7 +205,7 @@ def main(
 
         # name the axes and the figure
         cfg = output["config"]
-        ax.set_title("E={n_experiments} N={n_arms} B={n_budget}".format_map(cfg))
+        ax.set_title("E={n_experiments} M={n_arms} B={n_budget}".format_map(cfg))
         ax.set_xlabel("step out of {n_steps_per_replication} total".format_map(cfg))
         ax.set_ylabel(
             f"Average cumulative reward ({n_replications_per_experiment} reps.)"
@@ -215,6 +215,7 @@ def main(
     fig.savefig(os.path.join(path, f"{xp2all}_fig1__{tag}.pdf"))
 
     # save the pdf for the smoothed average reward
+    ewm_alpha: float = 0.95
     fig, ax = plt.subplots(1, 1, dpi=120, figsize=(7, 4))
     with mpl.rc_context({"legend.fontsize": "x-small"}):
         colors, legend = mpl.cm.tab10.colors, []
@@ -222,7 +223,7 @@ def main(
             result = output["results"]  # (E, R, T)
 
             # cumulative reward over the trajectories
-            acr_ert = ewmmean(result["rewards"], alpha=0.95, axis=-1)
+            acr_ert = ewmmean(result["rewards"], alpha=ewm_alpha, axis=-1)
 
             # average over replications
             avg_acr_et = acr_ert.mean(axis=-2)
@@ -236,11 +237,12 @@ def main(
 
         # name the axes and the figure
         cfg = output["config"]
-        ax.set_title("E={n_experiments} N={n_arms} B={n_budget}".format_map(cfg))
+        ax.set_title("E={n_experiments} M={n_arms} B={n_budget}".format_map(cfg))
         ax.set_xlabel("$t=1..T$ T={n_steps_per_replication}".format_map(cfg))
         ax.set_ylabel(
             f"Average cumulative reward ({n_replications_per_experiment} reps.)"
         )
+        ax.set_ylabel(fr"Average reward (ewm $\alpha={ewm_alpha}$)")
         ax.set_ylim(17, 30)
 
     fig.savefig(os.path.join(path, f"{xp2all}_fig2__{tag}.pdf"))
