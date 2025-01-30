@@ -215,8 +215,10 @@ def pv_problem_grb(
             (
                 (rew[k, 0, s, 0] + gam * V[k, 0]) * (1 - p[k, 0, s])
                 + (rew[k, 0, s, 1] + gam * V[k, 1]) * p[k, 0, s]
-            ) == Q0[k, s]
-            for k in Arms for s in States
+            )
+            == Q0[k, s]
+            for k in Arms
+            for s in States
         ),
         name="q0_defn",
     )
@@ -228,8 +230,10 @@ def pv_problem_grb(
             (
                 (rew[k, 1, s, 0] + gam * V[k, 0]) * (1 - p[k, 1, s])
                 + (rew[k, 1, s, 1] + gam * V[k, 1]) * p[k, 1, s]
-            ) == Q1[k, s]
-            for k in Arms for s in States
+            )
+            == Q1[k, s]
+            for k in Arms
+            for s in States
         ),
         name="q1_defn",
     )
