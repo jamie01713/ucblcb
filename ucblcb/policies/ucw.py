@@ -613,3 +613,38 @@ class UCWhittlePvPriv(UCWhittlePv):
         self.whittle_ks_ = np.asarray(lam_ks_)
 
         return self
+
+
+class UCWhittleUCBPriv(BaseUCWhittle):
+    def sneak_peek(self, env, /) -> None:
+        """Break open the black box and rummage in it for unfair advantage.
+
+        Notes
+        -----
+        Make sure NOT to reset the GT advantage in `setup_impl` if `sneak-peek`
+        is called before the very first update (which automatically does setup).
+        """
+
+        # ideally, whatever we get a hold of here should be estimated from some
+        #  sample collected burn-in period by standard means
+        if not isinstance(env, MDP):
+            raise NotImplementedError(type(env))
+
+        # Get the true transition probability `p_k(x=1 \mid a=0, s)` from arm `k`
+        #  at state `s` to state `x=1` if it is not pulled `a=0`
+        self.p_k0s1_ = env.kernels[:, 0, :, 1]  # XXX (N, S)
+
+    def compute_whittle(self):
+        ub_kas = ucb(self.n_kas_, self.n_max_steps, C=self.C)
+
+        # clip and make into a proper Markov kernel
+        p_k1s1 = np.clip(self.p_kas1_ + ub_kas, 0, 1)[:, 1, :]
+        p_kas1 = np.stack((self.p_k0s1_, p_k1s1), axis=-2)  # (k0s, k1s) -> kas
+        p_kasx = np.stack((1 - p_kas1, p_kas1), axis=-1)  # -> kasx
+
+        # compute the whittle index for all arms and all states
+        r_kasx = np.broadcast_to(np.r_[0.0, 1.0], p_kasx.shape)
+        _, lam_ks_, _ = batched_whittle_vi_inf_bisect(p_kasx, r_kasx, gam=self.gamma)
+        self.whittle_ks_ = np.asarray(lam_ks_)
+
+        return self
