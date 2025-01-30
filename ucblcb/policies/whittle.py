@@ -475,7 +475,22 @@ class Whittle(BasePolicy):
     value_ks_: ndarray[float]  # (N, S)
 
     def __repr__(self) -> str:
-        return type(self).__name__ + f"($\\gamma$={self.gamma})"
+        r"""Pretty print.
+
+        Notes
+        -----
+        The discount factor is usually denoted by either :math:`\gamma`
+        ([(Wang et al.; 2023)](https://arxiv.org/pdf/2205.15372)
+        and
+        [(Sutton, and Barto; 2020)](http://incompleteideas.net/book/the-book-2nd.html)),
+        or :math:`\beta`
+        ([(Whittle; 1998)](https://www.jstor.org/stable/3214163)
+        and
+        [(Adelman, and Mersereau; 2008)](https://dx.doi.org/10.1287/opre.1070.0445))
+        """
+
+        # we report gamma (rl) as beta (contol theory)
+        return type(self).__name__ + f"($\\beta$={self.gamma})"
 
     def __init__(
         self,
