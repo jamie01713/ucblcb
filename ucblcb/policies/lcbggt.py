@@ -74,7 +74,7 @@ class LGGT(BasePolicy):
         *,
         random: Generator = None,
     ) -> None:
-        super().__init__(n_max_steps, budget, n_states)
+        super().__init__(n_max_steps, budget, n_states, random=random)
 
         assert isinstance(threshold, float) and 0 <= threshold <= 1
         self.threshold = threshold
