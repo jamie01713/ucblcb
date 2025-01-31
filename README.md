@@ -1,16 +1,19 @@
-# UCB-LCB algorithm for RMAB
+# Lcb Guided Greedy Thresholding algorithm for binary RMAB
 
 ## Setup
 
-In general, the following setup should suffice for development or reproduction
+In general, the following setup should suffice for development or reproduction.
+
+Unless you are or prefer using `conda`, or already have `micromamba`, please, follow the installation instructions of [mamba-org](https://mamba.readthedocs.io/en/latest/installation/micromamba-installation.html). That link provides you with many installation options, one of them being the following:
 
 ```bash
-# ensure micromamba
 "${SHELL}" <(curl -L micro.mamba.pm/install.sh)
+```
 
+To setup the required environment for the experiments, please, run the following block. If you are using or prefer to use `conda`, please, replace `micromamba` with `conda`.
+
+```bash
 # setup the developer's env for alsoservice
-# XXX '=' fuzzy prefix version match, '==' exact version match
-# XXX micromamba deactivate && micromamba env remove -n ucblcb
 micromamba create -n ucblcb                    \
   "python>=3.11"                               \
   numpy                                        \
@@ -32,112 +35,40 @@ micromamba create -n ucblcb                    \
 
 ## Running experiments
 
-The following command runs the experiments declared in `run_xp1all.sh`, which sweeps over several settings of the budget of arms, that the policy is allowed to interact with on every step.
+The following command runs the experiment declared in `run_xp2_wiql_lggt.sh`, which runs a sweep over several settings of the budget, that the policy is allowed to interact with on every step. Replace `micromamba` with `conda` if required.
 
 ```bash
-# from the root of the repo
-# micromamba run -n ucblcb sh ./run_xp1all.sh
-# micromamba run -n ucblcb sh ./run_xp1_lggt.sh
-micromamba run -n ucblcb sh ./run_xp2all.sh
+# from the root of the repo (replace micromamba with conda if required)
+micromamba run -n ucblcb sh ./run_xp2_wiql_lggt.sh
 ```
 
-## Experiments with individual policies
+This will create a folder `results_xp2_wiql_lggt` in the root of the repo, wherein, after a while, you will be able to find the PDFs with plots and python Pickles, containing the results of the experiment runs. The results contain information about the configuration of the experiment from the sweep, and the results collected during independent replications of the rollouts of the policies specified in the `.sh` script.
 
-These experiments should be run when the `ucblcb` environment has been activated, which can be achieved by running `micromamba activate ucblcb` in a terminal session.
+The name of the pickle file `.pkl` is in the following format:
 
-```bash
-# python main.py -N 10 -T 50 -B 3 -E 1
-# python main.py -N 100 -T 500 -B 20 -E 30
-ipython -i run_xp1_single.py --                \
-    ucblcb.policies.RandomSubsetPolicy         \
-    --params='{}'                              \
-    --entropy=B76A074C23C703767710E1D756F73AE9 \
-    --path='./results'                         \
-    --n_population=100                         \
-    --n_arms=100                               \
-    --n_budget=20                              \
-    --n_experiments=31                         \
-    --n_episodes_per_experiment=500            \
-    --n_steps_per_episode=20
-
-ipython -i run_xp1_single.py --                \
-    ucblcb.policies.UcbLcb                     \
-    --params='{"threshold": 0.65}'             \
-    --entropy=B76A074C23C703767710E1D756F73AE9 \
-    --path='./results'                         \
-    --n_population=100                         \
-    --n_arms=100                               \
-    --n_budget=20                              \
-    --n_experiments=31                         \
-    --n_episodes_per_experiment=500            \
-    --n_steps_per_episode=20
-
-ipython -i run_xp1_single.py --                \
-    ucblcb.policies.Whittle                    \
-    --params='{"gamma": 0.95}'                 \
-    --entropy=B76A074C23C703767710E1D756F73AE9 \
-    --path='./results'                         \
-    --n_population=100                         \
-    --n_arms=100                               \
-    --n_budget=20                              \
-    --n_experiments=31                         \
-    --n_episodes_per_experiment=500            \
-    --n_steps_per_episode=20
-
-ipython -i run_xp1_single.py --                \
-    ucblcb.policies.WIQL                       \
-    --params='{"alpha": 0.5}'                  \
-    --entropy=B76A074C23C703767710E1D756F73AE9 \
-    --path='./results'                         \
-    --n_population=100                         \
-    --n_arms=100                               \
-    --n_budget=20                              \
-    --n_experiments=31                         \
-    --n_episodes_per_experiment=500            \
-    --n_steps_per_episode=20
+```text
+f"""
+    {prefix}
+    __P{n_population}
+    __M{n_arms}
+    __{noise}
+    __B{n_budget}
+    __E{n_experiments}
+    __L{n_replications_per_experiment}
+    __H{n_steps_per_replication}
+    __{does_pulling_have_higher_probability_of_good_state}
+    __{is_being_in_good_state_more_likely_to_lead_to_a_good_state}
+    __{data_source}
+    __{128 bit entropy}
+"""
 ```
 
-Below are some other random experiments:
+After the pickles with the results have been generated, you may re-create a plot similar to the tri-axis figure from the paper by running the following command, where the last three `.pkl` filenames should be replaced with the ones that you want.
 
 ```bash
-# run xp1 on all policies and build comparative plots
-ipython -i run_xp1.py --                       \
-    --entropy=B76A074C23C703767710E1D756F73AE9 \
-    --path='./results'                         \
-    --n_population=100                         \
-    --n_arms=100                               \
-    --n_budget=20                              \
-    --n_experiments=31                         \
-    --n_episodes_per_experiment=100            \
-    --n_steps_per_episode=100
-
-ipython -i run_xp1.py --                       \
-    --entropy=B76A074C23C703767710E1D756F73AE9 \
-    --path='./results'                         \
-    --n_population=100                         \
-    --n_arms=50                                \
-    --n_budget=20                              \
-    --n_experiments=31                         \
-    --n_episodes_per_experiment=10             \
-    --n_steps_per_episode=1000
-
-ipython -i run_xp1.py --                       \
-    --entropy=B76A074C23C703767710E1D756F73AE9 \
-    --path='./results'                         \
-    --n_population=100                         \
-    --n_arms=50                                \
-    --n_budget=20                              \
-    --n_experiments=31                         \
-    --n_episodes_per_experiment=500            \
-    --n_steps_per_episode=20
-
-ipython -i run_xp1.py --                       \
-    --entropy=B76A074C23C703767710E1D756F73AE9 \
-    --path='./results'                         \
-    --n_population=100                         \
-    --n_arms=50                                \
-    --n_budget=20                              \
-    --n_experiments=501                        \
-    --n_episodes_per_experiment=20             \
-    --n_steps_per_episode=500
+micromamba run -n ucblcb \
+    python make_triplet_figure.py --smoother=ewm P1000_M50_0.0_E11_R13_T500.pdf                                          \
+    ./xp2all_all_run2_data__P1000__M50__0.0__B5__E11__L13__H500__+ga__-go__random__B76A074C23C703767710E1D756F73AE9.pkl  \
+    ./xp2all_all_run2_data__P1000__M50__0.0__B10__E11__L13__H500__+ga__-go__random__B76A074C23C703767710E1D756F73AE9.pkl \
+    ./xp2all_all_run2_data__P1000__M50__0.0__B20__E11__L13__H500__+ga__-go__random__B76A074C23C703767710E1D756F73AE9.pkl
 ```
