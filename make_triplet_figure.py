@@ -1,5 +1,6 @@
 import os
 import pickle
+import argparse
 
 from functools import partial
 
@@ -11,24 +12,6 @@ from ucblcb.experiment.utils import ewmmean, expandingmean
 from ucblcb import policies as lib
 
 
-path = "./results_xp2_all-no-ucw/"
-path = os.path.abspath(path)
-triplet = [
-    'xp2all_all_data__P50__M50__0.0__B5__E11__L13__H500__+ga__-go__random__B76A074C23C703767710E1D756F73AE9.pkl',
-    'xp2all_all_data__P50__M50__0.0__B10__E11__L13__H500__+ga__-go__random__B76A074C23C703767710E1D756F73AE9.pkl',
-    'xp2all_all_data__P50__M50__0.0__B20__E11__L13__H500__+ga__-go__random__B76A074C23C703767710E1D756F73AE9.pkl',
-]
-
-filenames = [os.path.join(path, x) for x in triplet]
-
-
-# do we add gray trajectories to show variance
-add_gray_trajectories = True
-smoother = "ewm"
-# title = "E={n_experiments} M={n_arms} B={n_budget}"
-title = "Budget {n_budget} / {n_arms} (E{n_experiments}$\\times$R{n_replications_per_experiment})"
-
-
 # renamers to make the legend more compact
 # XXX ignore x.alpha and x.gamma setting
 labeller = {
@@ -38,9 +21,9 @@ labeller = {
     lib.WIQL: lambda x: "WIQL",
     lib.UCWhittleExtreme: lambda x: "ucw-extreme",
     lib.UCWhittleUCB: lambda x: "ucw-ucb",
-    # lib.UCWhittlePv: lambda x: repr(x),
-    # lib.UCWhittlePvPriv: lambda x: repr(x),
-    # lib.UCWhittleUCBPriv: lambda x: repr(x),
+    lib.UCWhittlePv: lambda x: "ucw-Pv",
+    lib.UCWhittlePvPriv: lambda x: "ucw-Pv++",
+    lib.UCWhittleUCBPriv: lambda x: "ucw-ucb++",
 }
 
 # z-order settings for the policies so that the really important curves are not occluded
@@ -52,10 +35,67 @@ zorders = {
 }
 
 # how to denoise the time series
+ewm_alpha: float = 0.95
 smoother_options = {
     "cumulative": (expandingmean, "Average cumulative reward"),
-    "ewm": (partial(ewmmean, alpha=0.95), "Smoothed reward"),
+    "ewm": (partial(ewmmean, alpha=ewm_alpha), "Smoothed reward"),
+    "none": (lambda x, *_, **__: x, "Rewards"),
 }
+
+# read argc and argv
+parser = argparse.ArgumentParser(
+    description="Make a triplet plot", add_help=True
+)
+parser.add_argument(
+    "target",
+    type=str,
+    help="The filename to save the figure under.",
+)
+parser.add_argument(
+    "filenames",
+    nargs=3,
+    type=str,
+    help="the experiment result dumps to plot from left to right.",
+)
+parser.add_argument(
+    "--title",
+    required=False,
+    type=str,
+    default="Budget {n_budget} / {n_arms} (E{n_experiments}$\\times$R{n_replications_per_experiment})",
+    help="The title template with named placeholders",
+)
+parser.add_argument(
+    "--add-series",
+    required=False,
+    action="store_true",
+    help="Should we plot grayed trajectories around the averaged runs?",
+)
+parser.add_argument(
+    "--smoother",
+    required=False,
+    choices=list(smoother_options),
+    default="ewm",
+    type=str,
+    help="How to smooth the reward series?",
+)
+
+args, _ = parser.parse_known_args()
+print(repr(args))
+
+# check if the target figure does no exist
+target = os.path.abspath(args.target)
+if os.path.isfile(target):
+    raise ValueError(target)
+
+# make sure the experiment result dumps exist
+# filenames = [
+#     "./results_xp2_all-no-ucw/xp2all_all_data__P50__M50__0.0__B5__E11__L13__H500__+ga__-go__random__B76A074C23C703767710E1D756F73AE9.pkl",
+#     "./results_xp2_all-no-ucw/xp2all_all_data__P50__M50__0.0__B10__E11__L13__H500__+ga__-go__random__B76A074C23C703767710E1D756F73AE9.pkl",
+#     "./results_xp2_all-no-ucw/xp2all_all_data__P50__M50__0.0__B20__E11__L13__H500__+ga__-go__random__B76A074C23C703767710E1D756F73AE9.pkl",
+# ]
+filenames = list(map(os.path.abspath, args.filenames))
+if not all(map(os.path.isfile, filenames)):
+    raise ValueError(filenames)
 
 # create three axes
 fig, axes = plt.subplots(
@@ -68,7 +108,7 @@ with mpl.rc_context({"legend.fontsize": "x-small"}):
     colors, legend = defaultdict(partial(next, it)), {}
 
     # read result dump of each run
-    smoother_fn, ylabel = smoother_options[smoother]
+    smoother_fn, ylabel = smoother_options[args.smoother]
     for ax, run in zip(axes, filenames):
         # for each policy in the run
         for pol, output in pickle.load(open(run, "rb")):
@@ -88,7 +128,7 @@ with mpl.rc_context({"legend.fontsize": "x-small"}):
             )
 
             # add trajectories averaged only across replications
-            if add_gray_trajectories:
+            if args.add_series:
                 ax.plot(
                     rew_ert.mean(axis=-2).T,
                     lw=1,
@@ -102,7 +142,7 @@ with mpl.rc_context({"legend.fontsize": "x-small"}):
 
         # name the axes and the figure
         cfg = output["config"]
-        ax.set_title(title.format_map(cfg))
+        ax.set_title(args.title.format_map(cfg))
         if not has_axes_labels:
             has_axes_labels = True
             ax.set_ylabel(ylabel)
@@ -114,5 +154,8 @@ with mpl.rc_context({"legend.fontsize": "x-small"}):
     # aesthetics
     fig.tight_layout()
     fig.subplots_adjust(top=0.80)
+
+fig.savefig(target)
+plt.close()
 
 plt.show()
