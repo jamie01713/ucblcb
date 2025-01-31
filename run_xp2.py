@@ -189,7 +189,7 @@ def main(
         results = pickle.load(pkl)
 
     # automatically average in the noisy case
-    do_average = noise > 0  # avg_over_experiments or noise > 0
+    do_average = True  # noise > 0  # avg_over_experiments or noise > 0
 
     # save the pdf for the average cumulative reward
     fig, ax = plt.subplots(1, 1, dpi=120, figsize=(7, 4))
