@@ -24,10 +24,9 @@ spec_override='{
     "ucblcb.policies.lcbggt.LGGT": {"threshold": [0.1, 0.4]},
     "ucblcb.policies.wiql.WIQL": {"gamma": [0.9], "alpha": [null]},
     "ucblcb.policies.whittle.Whittle": {"gamma": [0.9]},
-    "ucblcb.policies.ucw.UCWhittleExtreme": {"gamma": [0.9]},
-    "ucblcb.policies.ucw.UCWhittleUCBPriv": {"gamma": [0.9]},
-    "ucblcb.policies.ucw.UCWhittlePvPriv": {"gamma": [0.9]}
-
+    "ucblcb.policies.ucw.UCWhittleExtreme": {"gamma": [0.9], "C": [0.5]},
+    "ucblcb.policies.ucw.UCWhittleUCBPriv": {"gamma": [0.9], "C": [0.5]},
+    "ucblcb.policies.ucw.UCWhittlePvPriv": {"gamma": [0.9], "C": [0.5]}
 }'
 
 # budgets
