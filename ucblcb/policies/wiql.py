@@ -5,6 +5,8 @@ from numpy.random import Generator
 
 from .base import BasePolicy, random_subset
 
+from ..envs.mdp import MDP
+
 
 class WIQL(BasePolicy):
     r"""Whittle index-based Q-learning of [1]_.
@@ -203,3 +205,38 @@ class WIQL(BasePolicy):
         is_random = random.uniform(size=(n_samples, 1)) < epsilon
 
         return np.where(is_random, subset_rnd, subset_lam)
+
+
+class WIQLPriv(WIQL):
+    def sneak_peek(self, env, /) -> None:
+        """Break open the black box and rummage in it for unfair advantage.
+
+        Notes
+        -----
+        Make sure NOT to reset the GT advantage in `setup_impl` if `sneak-peek`
+        is called before the very first update (which automatically does setup).
+        """
+
+        # ideally, whatever we get a hold of here should be estimated from some
+        #  sample collected burn-in period by standard means
+        if not isinstance(env, MDP):
+            raise NotImplementedError(type(env))
+
+        # Get the expected reward `\phi_k(a=0, s)` from arm `k` at state `s` if
+        #  it is not pulled `a=0`: `\phi_k(a, s) = \sum_x r_k(a, s, x) p_k(x | a, s)`
+        # XXX note the __transposed__ output dims: `phi_ks_` is `(N, S,)`!
+        self.phi_ks_ = np.einsum("kasx,kasx->aks", env.kernels, env.rewards)[0]
+
+    def setup_impl(self, /, obs, act, rew, new, fin, *, random: Generator = None):
+        """Initialize the ucb-lcb state from the transition."""
+        super().setup_impl(obs, act, rew, new, fin, random=random)
+
+        # expected reward of arm `k` leaving state `s` under action `a_k = 0`
+        # XXX DO NOT RESET privileged information!
+        if not hasattr(self, "phi_ks_"):
+            self.phi_ks_ = np.zeros((self.n_arms_in_, self.n_states), float)
+
+        # init the arm-state-action value table to `q_k(s, a) = \phi(s, 0)`
+        self.qval_aks_ = np.stack([self.phi_ks_] * self.n_actions)
+
+        return self
