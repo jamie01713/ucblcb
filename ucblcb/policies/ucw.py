@@ -77,7 +77,7 @@ class BaseUCWhittle(Whittle):
 
     def __repr__(self) -> str:
         # we report gamma (rl) as beta (contol theory)
-        parstr = f"($\\beta$={self.gamma}, H={self.n_horizon}, C={self.C})"
+        parstr = f"($\\beta$={self.gamma}, H={self.n_horizon})"
         return type(self).__name__ + parstr
 
     def setup_impl(self, /, obs, act, rew, new, fin, *, random: Generator = None):
