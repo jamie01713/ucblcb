@@ -350,12 +350,7 @@ class UCWhittlePv(BaseUCWhittle):
                - line 7 (unclear at which state the top-k lambda on line 10)
            47. compute the :math:`\pi^{(\tau+1)}` and increment :math:`\tau`
 
-    The second change is related our introduction a multiplier for the UCB, which
-    is :math:`C=1` in [1]_ eqn. (9). We noticed that the confidence box for the
-    transition probability estimate is so large, as to frequently getting clipped
-    by :math:`[0, 1]^{K \lvert S \rvert \lvert A \rvert}`. This dramatically slowed
-    down the convergence of the UCW-policy. By using the value of :math:`\frac{1}{10}`
-    we manged to recover competitive performance of the UCW-family.
+    
 
     Finally, as of 2025-01-30, this implementation forces :math:`\lambda` in
     :math:`\mathcal{P}_v` of [1]_ to zero because from their pseudocode the meaning
@@ -390,7 +385,7 @@ class UCWhittlePv(BaseUCWhittle):
         n_states: int,
         /,
         gamma: float,
-        C: float = 0.1,
+        C: float = 1.0,
         *,
         random: Generator = None,
     ) -> None:
