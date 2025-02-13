@@ -2,7 +2,7 @@
 """
 
 from numpy import ndarray
-from numpy.random import Generator
+from numpy.random import Generator, default_rng
 
 from typing import TypeVar
 
@@ -23,6 +23,9 @@ class Env:
     """
 
     random_: Generator
+
+    def __init__(self, random: Generator, /) -> None:
+        self.random_ = default_rng(random)  # the PRNG `random` is consumed!
 
     def reset(self) -> tuple[Observation, dict]:
         raise NotImplementedError
