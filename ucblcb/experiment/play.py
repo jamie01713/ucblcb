@@ -6,14 +6,17 @@ from numpy.random import default_rng, Generator, SeedSequence
 from jax import tree_util as tu
 from functools import partial
 
-from typing import Iterator, Iterable, Any
+from typing import Iterator, Iterable, TypeVar
 from collections.abc import Callable
 
 from ..envs.base import Env, Observation, Action, Reward, Done
 from ..policies.base import BasePolicy
 
 
-def collate(pytrees: list[Any]) -> Any:
+T = TypeVar("T")
+
+
+def default_collate(pytrees: list[T]) -> T:
     """Collate pytrees with array-like leaves preserving tree structure"""
 
     return tu.tree_map(lambda *x: np.stack(x), *pytrees)
@@ -93,6 +96,7 @@ def base_rollout(
     n_steps: int,
     auto: bool = False,
     n_steps_per_update: int = 1,
+    collate: Callable[[list[T]], T] = default_collate,
 ) -> Iterator[Transtition]:
     """Stream transitions from the online rollout with on-policy updates."""
 
@@ -155,4 +159,5 @@ def rollout(
         n_steps=n_steps,
         auto=auto,
         n_steps_per_update=n_steps_per_update,
+        collate=default_collate,
     )
