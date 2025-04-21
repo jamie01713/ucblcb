@@ -18,8 +18,8 @@ def lcb(N, T=None, /, C: float = -1.0):
     Np1 = 1 + N  # XXX why `+1` here and on the line below?
     # XXX the `\log` in the numerator is novelty!
     return -C * np.sqrt(np.log(1 + Np1) / (1 + Np1))
-    #return 0.0
-    #return -C * np.sqrt((np.log(np.log(Np1 + 1)) + 2 * np.log(T * 10)) / Np1)
+    # return 0.0
+    # return -C * np.sqrt((np.log(np.log(Np1 + 1)) + 2 * np.log(T * 10)) / Np1)
     # XXX shouldn't we return to `+\infty` if N is zero, i.e. no samples, to indicate
     #  complete uncertainty, maximal absence of confidence? same with ucb
 
@@ -73,8 +73,8 @@ class LGGTWUF(BasePolicy):
         n_states: int,
         /,
         threshold: float,
-        C:float,
-        C1:float,
+        C: float,
+        C1: float,
         *,
         random: Generator = None,
     ) -> None:
@@ -82,8 +82,8 @@ class LGGTWUF(BasePolicy):
 
         assert isinstance(threshold, float) and -100 <= threshold <= 3
         self.threshold = threshold
-        self.C=C
-        self.C1=C1
+        self.C = C
+        self.C1 = C1
 
     def sneak_peek(self, env, /) -> None:
         """Break open the black box and rummage in it for unfair advantage.
@@ -183,10 +183,10 @@ class LGGTWUF(BasePolicy):
         #  bounds of each arm `k` at its observed state in the batch item `b`
         # XXX each arms gets at most one pull per step so
         #     `np.sum(self.n_pulls_sk_) <= self.n_max_steps`
-        lcb_ = inc_rew_sk_ - lcb(self.n_pulls_sk_, self.n_max_steps,self.C)
-        sample_=inc_rew_sk_+lcb(self.n_pulls_sk_, self.n_max_steps,self.C1)
+        lcb_ = inc_rew_sk_ - lcb(self.n_pulls_sk_, self.n_max_steps, self.C)
+        sample_ = inc_rew_sk_ + lcb(self.n_pulls_sk_, self.n_max_steps, self.C1)
         ucb_ = inc_rew_sk_ + ucb(self.n_pulls_sk_, self.n_max_steps)
-        sample_bk,lcb_bk, ucb_bk = sample_[obs,idx],lcb_[obs, idx], ucb_[obs, idx]
+        sample_bk, lcb_bk, ucb_bk = sample_[obs, idx], lcb_[obs, idx], ucb_[obs, idx]
 
         # lexsort: first order the arms (in each batch item) by increasing ucb,
         #  then stably sort by thresholded lcb in ascending order. Thresholding
@@ -206,7 +206,7 @@ class LGGTWUF(BasePolicy):
         for i in range(m):
             # Extract the top-B columns for row i (shape: (B,))
             top_cols = order[i, -B:]
-            
+
             # Filter: keep only those with sample_bk > 0
             valid_mask = sample_bk[i, top_cols] >= 0
             valid_cols = top_cols[valid_mask]
