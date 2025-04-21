@@ -4,15 +4,19 @@ import numpy as np
 from numpy.random import default_rng, Generator, SeedSequence
 
 from jax import tree_util as tu
+from functools import partial
 
-from typing import Iterator, Iterable, Any
+from typing import Iterator, Iterable, TypeVar
 from collections.abc import Callable
 
 from ..envs.base import Env, Observation, Action, Reward, Done
 from ..policies.base import BasePolicy
 
 
-def collate(pytrees: list[Any]) -> Any:
+T = TypeVar("T")
+
+
+def default_collate(pytrees: list[T]) -> T:
     """Collate pytrees with array-like leaves preserving tree structure"""
 
     return tu.tree_map(lambda *x: np.stack(x), *pytrees)
@@ -41,8 +45,12 @@ def batched(iterable: Iterable, n: int) -> Iterable:
 Transtition = tuple[Observation, Action, Reward, Observation, Done]
 
 
-def play(
-    env: Env, pol: Callable[[Observation], Action], /, n_steps: int | None, auto: bool
+def core_rollout(
+    env: Env,
+    decide: Callable[[Observation], Action],
+    /,
+    n_steps: int | None,
+    auto: bool,
 ) -> Iterator[Transtition]:
     """Interact for n_steps, until termination, or indefinitely with auto-reset."""
 
@@ -54,8 +62,8 @@ def play(
         # local time tick `t-1 -> t` (`x` becomes `s`, and, optionally, env is reset)
         obs, _ = env.reset() if done else (obs_, {})
 
-        # x_t --pol-->> a_t: `act` is a non-batched action in the env `a_t`
-        act = pol(obs)  # XXX `pol`, like `env`, is stateful!
+        # x_t --decide-->> a_t: `act` is a non-batched action in the env `a_t`
+        act = decide(obs)  # XXX `decide`, like `env`, is stateful!
 
         # (x_t, a_t) --env-->> (r_{t+1}, x_{t+1}, F_{t+1}), where `F_{t+1}`
         #   indicates if the env's episode got naturally terminated
@@ -77,6 +85,41 @@ def play(
         # break if the env terminated and we are not auto-resetting
         if done and not auto:
             return
+
+
+def base_rollout(
+    env: Env,
+    /,
+    decide: Callable[[Observation], Action],
+    update: Callable[[Observation, Action, Reward, Observation, Done], None],
+    *,
+    n_steps: int,
+    auto: bool = False,
+    n_steps_per_update: int = 1,
+    collate: Callable[[list[T]], T] = default_collate,
+) -> Iterator[Transtition]:
+    """Stream transitions from the online rollout with on-policy updates."""
+
+    assert n_steps is None or isinstance(n_steps, int), n_steps
+
+    # launch the transition collection loop: it plays the policy in the env and
+    #  streams transitions into the consuming for-loop. The policy may not be
+    #  static, and in fact is updated online in the batched for-loop below.
+    # XXX `core_rollout` is an ITERATOR FUNCTION, runing in lockstep with the for-loop
+    liveloop = core_rollout(env, decide, n_steps=n_steps, auto=auto)
+
+    # interact with the env to generate experience in batches
+    # XXX batch[j] is `(x^j_t, a^j_t, r^j_{t+1}, x^j_{t+1}, F^j_{t+1})`
+    for batch in batched(liveloop, n_steps_per_update):
+        # `update` expects a leading batch dimension, so we unpack and stack
+        obs, act, rew_, obs_, done = collate(batch)
+
+        # update with the observed ON-POLICY `sarx` transition data
+        update(obs, act, rew_, obs_, done)
+
+        # send the batched transition used for the update `(n_steps_per_update, ...)`
+        # XXX consecutive transitions of the same trajectory (unless auto-reset)
+        yield obs, act, rew_, obs_, done
 
 
 def rollout(
@@ -104,22 +147,17 @@ def rollout(
         singleton = tu.tree_map(lambda x: np.expand_dims(x, 0), obs)
         return pol.decide(random, singleton)[0]
 
-    # launch the transition collection loop: it play the policy in the env and
-    #  streams transitions into the consuming for-loop. The policy may not be
-    #  static, and in fact is updated online in the batched for-loop below.
-    # XXX `play` is an ITERATOR FUNCTION, which runs in lockstep with the for-loop.
-    liveloop = play(env, pol_decide, n_steps=n_steps, auto=auto)
+    # update `pol` with the observed transitions
+    # XXX `pol` is updated INPLACE, and `random` is consumed!
+    pol_update = partial(pol.update, random=random)
 
-    # interact with the env to generate experience in batches
-    # XXX batch[j] is `(x^j_t, a^j_t, r^j_{t+1}, x^j_{t+1}, F^j_{t+1})`
-    for batch in batched(liveloop, n_steps_per_update):
-        # `pol.update` expects a leading batch dimension, so we unpack and stack
-        obs, act, rew_, obs_, done = collate(batch)
-
-        # update of `pol` with the observed ON-POLICY `sarx` transition data
-        # XXX `pol` is updated INPLACE, and `random` is consumed!
-        pol.update(obs, act, rew_, obs_, done, random=random)
-
-        # send the batched transition used for the update `(n_steps_per_update, ...)`
-        # XXX consecutive transitions of the same trajectory (unless auto-reset)
-        yield obs, act, rew_, obs_, done
+    # stream from the online updated policy rollout
+    yield from base_rollout(
+        env,
+        pol_decide,
+        pol_update,
+        n_steps=n_steps,
+        auto=auto,
+        n_steps_per_update=n_steps_per_update,
+        collate=default_collate,
+    )

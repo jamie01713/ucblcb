@@ -14,7 +14,7 @@ from collections.abc import Callable
 from ..envs import MDP
 from ..policies.base import BasePolicy
 from ..envs.base import Env
-from .play import rollout, collate
+from .play import rollout, default_collate as collate
 from .utils import sq_spawn, sneak_peek, snapshot_git
 
 

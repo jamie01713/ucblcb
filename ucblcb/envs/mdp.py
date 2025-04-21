@@ -32,8 +32,8 @@ class MDP(Env):
     def __init__(
         self, random: Generator, /, kernels, rewards, *, noise: float = 0.0
     ) -> None:
+        super().__init__(random)  # the PRNG `random` is consumed!
         self.kernels, self.rewards = self.validate(kernels, rewards)
-        self.random_ = default_rng(random)  # the PRNG `random` is consumed!
 
         # allow different per-arm noise level
         self.noise = np.broadcast_to(np.maximum(0.0, noise), self.kernels.shape[:-3])
